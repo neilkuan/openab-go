@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.1.2](https://github.com/neilkuan/openab-go/compare/v0.1.1...v0.1.2) - 2026-04-10
+- chore: optimize Dockerfile layer caching by @neilkuan in https://github.com/neilkuan/openab-go/pull/6
+
 ## [v0.1.1](https://github.com/neilkuan/openab-go/compare/v0.1.0...v0.1.1) - 2026-04-10
 - fix: use commit SHA instead of version tag in binary by @neilkuan in https://github.com/neilkuan/openab-go/pull/4
 
