@@ -19,8 +19,8 @@ Versions follow SemVer with pre-release candidates:
         ▼
   ┌──────────────┐     ┌──────────────────┐
   │ tagpr opens  │────>│ Release PR       │
-  │ Release PR   │     │ (bumps VERSION,  │
-  └──────────────┘     │  Chart.yaml)     │
+  │ Release PR   │     │ (bumps VERSION)  │
+  └──────────────┘     │                  │
                        └──────────────────┘
 ```
 
@@ -32,8 +32,8 @@ Versions follow SemVer with pre-release candidates:
         ▼
   ┌─────────────┐     ┌──────────────────┐
   │ CI: Build   │────>│ Push images      │
-  │ 4 variants  │     │ + Helm chart     │
-  │ amd64+arm64 │     │ (OCI registry)   │
+  │ 4 variants  │     │ (GHCR)           │
+  │ amd64+arm64 │     │                  │
   └─────────────┘     └──────────────────┘
         │
         ▼
@@ -47,10 +47,10 @@ Versions follow SemVer with pre-release candidates:
         │
         ▼
   ┌──────────────┐     ┌──────────────────────────────┐
-  │ tagpr tags   │────>│ CI: Promote pre-release      │
-  │ v0.2.1       │     │ (re-tag, no rebuild)         │
-  └──────────────┘     │ + OCI chart push             │
-                       └──────────────────────────────┘
+  │ tagpr tags   │────>│ CI: Promote pre-release   │
+  │ v0.2.1       │     │ (re-tag, no rebuild)      │
+  └──────────────┘     │                           │
+                       └───────────────────────────┘
         │
         ▼
   Images tagged: <version>, <major.minor>, latest
@@ -71,10 +71,3 @@ Tag patterns:
 - **Pre-release**: `<sha>`, `<version-rc.N>`
 - **Stable**: `<version>`, `<major.minor>`, `latest`
 
-## Helm Chart
-
-Charts are published to the OCI registry:
-
-```bash
-helm install openab-go oci://ghcr.io/neilkuan/charts/openab-go
-```

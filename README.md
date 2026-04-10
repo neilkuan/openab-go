@@ -14,7 +14,7 @@ This is a **Go rewrite** of [openab](https://github.com/neilkuan/openab) (origin
 - **Emoji status reactions** — `👀→🤔→🔥/👨‍💻/⚡→🆗` showing processing progress
 - **Session pool** — one CLI process per thread, automatic lifecycle management
 - **ACP protocol** — JSON-RPC over stdio
-- **Kubernetes ready** — includes Dockerfile and Helm chart
+- **Kubernetes ready** — includes Dockerfile for containerized deployment
 
 ---
 
@@ -76,12 +76,6 @@ docker run -v $(pwd)/config.toml:/etc/openab/config.toml \
   ghcr.io/neilkuan/openab-go:latest
 ```
 
-##### Helm
-
-```bash
-helm install openab-go oci://ghcr.io/neilkuan/charts/openab-go
-```
-
 ---
 
 ##### Development
@@ -128,7 +122,6 @@ openab-go/
 ├── Dockerfile.claude    # Claude Code variant
 ├── Dockerfile.codex     # Codex variant
 ├── Dockerfile.gemini    # Gemini CLI variant
-├── charts/openab-go/    # Helm chart
 ├── config.toml.example  # Configuration reference
 ├── VERSION              # Semver version (managed by tagpr)
 └── RELEASING.md         # Release workflow documentation
@@ -150,7 +143,7 @@ openab-go/
 
 Releases use [tagpr](https://github.com/Songmu/tagpr) with a **"what you tested is what you ship"** philosophy:
 
-1. **Merge PRs to main** → tagpr auto-opens a Release PR (bumps `VERSION` + `Chart.yaml`)
+1. **Merge PRs to main** → tagpr auto-opens a Release PR (bumps `VERSION`)
 2. **Tag a pre-release** (`v0.2.0-rc.1`) → full build of 4 image variants x 2 platforms
 3. **Merge the Release PR** → tagpr tags stable (`v0.2.0`) → promotes pre-release images (no rebuild)
 

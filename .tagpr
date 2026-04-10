@@ -2,8 +2,7 @@
 # see: https://github.com/Songmu/tagpr
 
 [tagpr]
-versionFile = "VERSION,charts/openab-go/Chart.yaml"
+versionFile = "VERSION"
 tagPrefix = "v"
 releaseBranch = "main"
 changelog = true
-postVersionCommand = "sed -i 's/^appVersion: .*/appVersion: \"'\"$TAGPR_NEXT_VERSION\"'\"/' charts/openab-go/Chart.yaml"
