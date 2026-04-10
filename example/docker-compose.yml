@@ -1,0 +1,19 @@
+services:
+  kiro:
+    image: "ghcr.io/neilkuan/openab-go:latest"
+    container_name: openab-go-kiro
+    restart: always
+    volumes:
+      - ./data/home/agent:/home/agent
+      - ./data/config/kiro/config.toml:/etc/openab-go/config.toml
+    environment:
+      - OPENAB_LOG=debug
+  claude:
+    image: "ghcr.io/neilkuan/openab-go-claude:latest"
+    container_name: openab-go-claude
+    restart: always
+    volumes:
+      - ./data/home/node:/home/node
+      - ./data/config/claude/config.toml:/etc/openab-go/config.toml
+    environment:
+      - OPENAB_LOG=debug

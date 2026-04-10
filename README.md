@@ -72,7 +72,7 @@ Four image variants are published for each release:
 | `ghcr.io/neilkuan/openab-go-gemini` | Gemini CLI |
 
 ```bash
-docker run -v $(pwd)/config.toml:/etc/openab/config.toml \
+docker run -v $(pwd)/config.toml:/etc/openab-go/config.toml \
   ghcr.io/neilkuan/openab-go:latest
 ```
 

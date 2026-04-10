@@ -40,4 +40,4 @@ USER agent
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD pgrep -x openab-go || exit 1
 ENTRYPOINT ["openab-go"]
-CMD ["/etc/openab/config.toml"]
+CMD ["/etc/openab-go/config.toml"]

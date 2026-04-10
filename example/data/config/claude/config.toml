@@ -1,0 +1,31 @@
+[discord]
+bot_token = "YOUR_KIRO_BOT_TOKEN"
+allowed_channels = ["YOUR_CHANNEL_ID"]
+
+[agent]
+command = "claude-agent-acp"
+working_dir = "/home/node"
+
+[pool]
+max_sessions = 10
+session_ttl_hours = 24
+
+[discord.reactions]
+enabled = true
+remove_after_reply = false
+
+[discord.reactions.emojis]
+queued = "😋"
+thinking = "📝"
+tool = "🍺"
+coding = "💻"
+web = "💙"
+done = "🆗"
+error = "😱"
+
+[discord.reactions.timing]
+debounce_ms = 700
+stall_soft_ms = 10000
+stall_hard_ms = 30000
+done_hold_ms = 1500
+error_hold_ms = 2500
