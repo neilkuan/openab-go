@@ -1,0 +1,11 @@
+# Go
+openab
+openab-go
+*.exe
+
+# Editor / OS
+*.swp
+.DS_Store
+
+# Config secrets
+config.toml

@@ -1,0 +1,151 @@
+package acp
+
+import (
+	"encoding/json"
+)
+
+// --- Outgoing ---
+
+type JsonRpcRequest struct {
+	Jsonrpc string      `json:"jsonrpc"`
+	ID      uint64      `json:"id"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params,omitempty"`
+}
+
+func NewJsonRpcRequest(id uint64, method string, params interface{}) *JsonRpcRequest {
+	return &JsonRpcRequest{
+		Jsonrpc: "2.0",
+		ID:      id,
+		Method:  method,
+		Params:  params,
+	}
+}
+
+type JsonRpcResponse struct {
+	Jsonrpc string      `json:"jsonrpc"`
+	ID      uint64      `json:"id"`
+	Result  interface{} `json:"result"`
+}
+
+func NewJsonRpcResponse(id uint64, result interface{}) *JsonRpcResponse {
+	return &JsonRpcResponse{
+		Jsonrpc: "2.0",
+		ID:      id,
+		Result:  result,
+	}
+}
+
+// --- Incoming ---
+
+type JsonRpcMessage struct {
+	ID     *uint64          `json:"id,omitempty"`
+	Method *string          `json:"method,omitempty"`
+	Result *json.RawMessage `json:"result,omitempty"`
+	Error  *JsonRpcError    `json:"error,omitempty"`
+	Params *json.RawMessage `json:"params,omitempty"`
+}
+
+type JsonRpcError struct {
+	Code    int64  `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e *JsonRpcError) Error() string {
+	return e.Message
+}
+
+// --- ACP notification classification ---
+
+type AcpEventType int
+
+const (
+	AcpEventText AcpEventType = iota
+	AcpEventThinking
+	AcpEventToolStart
+	AcpEventToolDone
+	AcpEventStatus
+)
+
+type AcpEvent struct {
+	Type   AcpEventType
+	Text   string
+	Title  string
+	Status string
+}
+
+func ClassifyNotification(msg *JsonRpcMessage) *AcpEvent {
+	if msg.Params == nil {
+		return nil
+	}
+
+	var params struct {
+		Update json.RawMessage `json:"update"`
+	}
+	if err := json.Unmarshal(*msg.Params, &params); err != nil {
+		return nil
+	}
+
+	var update map[string]json.RawMessage
+	if err := json.Unmarshal(params.Update, &update); err != nil {
+		return nil
+	}
+
+	sessionUpdateRaw, ok := update["sessionUpdate"]
+	if !ok {
+		return nil
+	}
+
+	var sessionUpdate string
+	if err := json.Unmarshal(sessionUpdateRaw, &sessionUpdate); err != nil {
+		return nil
+	}
+
+	switch sessionUpdate {
+	case "agent_message_chunk":
+		contentRaw, ok := update["content"]
+		if !ok {
+			return nil
+		}
+		var content struct {
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(contentRaw, &content); err != nil {
+			return nil
+		}
+		return &AcpEvent{Type: AcpEventText, Text: content.Text}
+
+	case "agent_thought_chunk":
+		return &AcpEvent{Type: AcpEventThinking}
+
+	case "tool_call":
+		title := extractStringField(update, "title")
+		return &AcpEvent{Type: AcpEventToolStart, Title: title}
+
+	case "tool_call_update":
+		title := extractStringField(update, "title")
+		status := extractStringField(update, "status")
+		if status == "completed" || status == "failed" {
+			return &AcpEvent{Type: AcpEventToolDone, Title: title, Status: status}
+		}
+		return &AcpEvent{Type: AcpEventToolStart, Title: title}
+
+	case "plan":
+		return &AcpEvent{Type: AcpEventStatus}
+
+	default:
+		return nil
+	}
+}
+
+func extractStringField(m map[string]json.RawMessage, key string) string {
+	raw, ok := m[key]
+	if !ok {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return ""
+	}
+	return s
+}

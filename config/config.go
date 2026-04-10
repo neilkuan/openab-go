@@ -1,0 +1,215 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+
+	"github.com/BurntSushi/toml"
+)
+
+// --- Top-level ---
+
+type Config struct {
+	Agent    AgentConfig    `toml:"agent"`
+	Pool     PoolConfig     `toml:"pool"`
+	Discord  DiscordConfig  `toml:"discord"`
+	Telegram TelegramConfig `toml:"telegram"`
+	Teams    TeamsConfig    `toml:"teams"`
+}
+
+// --- Shared ---
+
+type AgentConfig struct {
+	Command    string            `toml:"command"`
+	Args       []string          `toml:"args"`
+	WorkingDir string            `toml:"working_dir"`
+	Env        map[string]string `toml:"env"`
+}
+
+type PoolConfig struct {
+	MaxSessions     int `toml:"max_sessions"`
+	SessionTTLHours int `toml:"session_ttl_hours"`
+}
+
+// --- Discord ---
+
+type DiscordConfig struct {
+	Enabled         bool            `toml:"enabled"`
+	BotToken        string          `toml:"bot_token"`
+	AllowedChannels []string        `toml:"allowed_channels"`
+	Reactions       ReactionsConfig `toml:"reactions"`
+}
+
+type ReactionsConfig struct {
+	Enabled          bool           `toml:"enabled"`
+	RemoveAfterReply bool           `toml:"remove_after_reply"`
+	Emojis           ReactionEmojis `toml:"emojis"`
+	Timing           ReactionTiming `toml:"timing"`
+}
+
+type ReactionEmojis struct {
+	Queued   string `toml:"queued"`
+	Thinking string `toml:"thinking"`
+	Tool     string `toml:"tool"`
+	Coding   string `toml:"coding"`
+	Web      string `toml:"web"`
+	Done     string `toml:"done"`
+	Error    string `toml:"error"`
+}
+
+type ReactionTiming struct {
+	DebounceMs  int64 `toml:"debounce_ms"`
+	StallSoftMs int64 `toml:"stall_soft_ms"`
+	StallHardMs int64 `toml:"stall_hard_ms"`
+	DoneHoldMs  int64 `toml:"done_hold_ms"`
+	ErrorHoldMs int64 `toml:"error_hold_ms"`
+}
+
+// --- Telegram (stub) ---
+
+type TelegramConfig struct {
+	Enabled      bool    `toml:"enabled"`
+	BotToken     string  `toml:"bot_token"`
+	AllowedChats []int64 `toml:"allowed_chats"`
+}
+
+// --- Teams (stub) ---
+
+type TeamsConfig struct {
+	Enabled   bool   `toml:"enabled"`
+	AppID     string `toml:"app_id"`
+	AppSecret string `toml:"app_secret"`
+	TenantID  string `toml:"tenant_id"`
+}
+
+// --- Defaults ---
+
+func applyDefaults(cfg *Config) {
+	// Agent
+	if cfg.Agent.WorkingDir == "" {
+		cfg.Agent.WorkingDir = "/tmp"
+	}
+
+	// Pool
+	if cfg.Pool.MaxSessions == 0 {
+		cfg.Pool.MaxSessions = 10
+	}
+	if cfg.Pool.SessionTTLHours == 0 {
+		cfg.Pool.SessionTTLHours = 24
+	}
+
+	// Discord — if the section is present with a token, default to enabled
+	if cfg.Discord.BotToken != "" && !cfg.Discord.Enabled {
+		cfg.Discord.Enabled = true
+	}
+
+	applyReactionDefaults(&cfg.Discord.Reactions)
+
+	// Telegram — if the section is present with a token, default to enabled
+	if cfg.Telegram.BotToken != "" && !cfg.Telegram.Enabled {
+		cfg.Telegram.Enabled = true
+	}
+}
+
+func applyReactionDefaults(r *ReactionsConfig) {
+	if !r.Enabled && r.Emojis.Queued == "" {
+		r.Enabled = true
+	}
+
+	e := &r.Emojis
+	if e.Queued == "" {
+		e.Queued = "👀"
+	}
+	if e.Thinking == "" {
+		e.Thinking = "🤔"
+	}
+	if e.Tool == "" {
+		e.Tool = "🔥"
+	}
+	if e.Coding == "" {
+		e.Coding = "👨‍💻"
+	}
+	if e.Web == "" {
+		e.Web = "⚡"
+	}
+	if e.Done == "" {
+		e.Done = "🆗"
+	}
+	if e.Error == "" {
+		e.Error = "😱"
+	}
+
+	t := &r.Timing
+	if t.DebounceMs == 0 {
+		t.DebounceMs = 700
+	}
+	if t.StallSoftMs == 0 {
+		t.StallSoftMs = 10_000
+	}
+	if t.StallHardMs == 0 {
+		t.StallHardMs = 30_000
+	}
+	if t.DoneHoldMs == 0 {
+		t.DoneHoldMs = 1_500
+	}
+	if t.ErrorHoldMs == 0 {
+		t.ErrorHoldMs = 2_500
+	}
+}
+
+// --- Loader ---
+
+var envVarRe = regexp.MustCompile(`\$\{(\w+)\}`)
+
+func expandEnvVars(raw string) string {
+	return envVarRe.ReplaceAllStringFunc(raw, func(match string) string {
+		key := envVarRe.FindStringSubmatch(match)[1]
+		return os.Getenv(key)
+	})
+}
+
+func LoadConfig(path string) (*Config, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	expanded := expandEnvVars(string(raw))
+
+	var cfg Config
+	if err := toml.Unmarshal([]byte(expanded), &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
+	}
+
+	applyDefaults(&cfg)
+
+	if err := validate(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func validate(cfg *Config) error {
+	if cfg.Agent.Command == "" {
+		return fmt.Errorf("agent.command is required")
+	}
+	if _, err := exec.LookPath(cfg.Agent.Command); err != nil {
+		return fmt.Errorf("agent.command %q not found in PATH: %w", cfg.Agent.Command, err)
+	}
+	if cfg.Agent.WorkingDir != "" {
+		info, err := os.Stat(cfg.Agent.WorkingDir)
+		if err != nil {
+			return fmt.Errorf("agent.working_dir %q does not exist: %w", cfg.Agent.WorkingDir, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("agent.working_dir %q is not a directory", cfg.Agent.WorkingDir)
+		}
+	}
+	if !cfg.Discord.Enabled && !cfg.Telegram.Enabled && !cfg.Teams.Enabled {
+		return fmt.Errorf("no platform enabled — set at least one of discord/telegram/teams")
+	}
+	return nil
+}
