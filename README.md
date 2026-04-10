@@ -153,4 +153,4 @@ See [RELEASING.md](RELEASING.md) for the full workflow.
 
 ##### License
 
-Same as [openab](https://github.com/neilkuan/openab).
+[MIT](LICENSE)

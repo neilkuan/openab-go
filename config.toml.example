@@ -30,19 +30,19 @@ working_dir = "/home/agent"
 # [agent]
 # command = "claude-agent-acp"
 # args = []
-# working_dir = "/home/agent"
+# working_dir = "/home/node"
 # env = { ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY}" }
 
 # [agent]
 # command = "codex-acp"
 # args = []
-# working_dir = "/home/agent"
+# working_dir = "/home/node"
 # env = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }
 
 # [agent]
 # command = "gemini"
 # args = ["--acp"]
-# working_dir = "/home/agent"
+# working_dir = "/home/node"
 # env = { GEMINI_API_KEY = "${GEMINI_API_KEY}" }
 
 [pool]
