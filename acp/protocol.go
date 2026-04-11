@@ -4,6 +4,24 @@ import (
 	"encoding/json"
 )
 
+// --- Content blocks for prompts ---
+
+// ContentBlock represents a single content element in an ACP prompt.
+type ContentBlock struct {
+	Type     string `json:"type"`               // "text" or "image"
+	Text     string `json:"text,omitempty"`      // for type "text"
+	Data     string `json:"data,omitempty"`      // base64 encoded, for type "image"
+	MimeType string `json:"mimeType,omitempty"`  // e.g. "image/png", for type "image"
+}
+
+func TextBlock(text string) ContentBlock {
+	return ContentBlock{Type: "text", Text: text}
+}
+
+func ImageBlock(base64Data, mimeType string) ContentBlock {
+	return ContentBlock{Type: "image", Data: base64Data, MimeType: mimeType}
+}
+
 // --- Outgoing ---
 
 type JsonRpcRequest struct {
