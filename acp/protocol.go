@@ -7,19 +7,27 @@ import (
 // --- Content blocks for prompts ---
 
 // ContentBlock represents a single content element in an ACP prompt.
-type ContentBlock struct {
-	Type     string `json:"type"`               // "text" or "image"
-	Text     string `json:"text,omitempty"`      // for type "text"
-	Data     string `json:"data,omitempty"`      // base64 encoded, for type "image"
-	MimeType string `json:"mimeType,omitempty"`  // e.g. "image/png", for type "image"
-}
+// Uses json.RawMessage to support different JSON shapes for text vs image.
+type ContentBlock map[string]interface{}
 
 func TextBlock(text string) ContentBlock {
-	return ContentBlock{Type: "text", Text: text}
+	return ContentBlock{
+		"type": "text",
+		"text": text,
+	}
 }
 
+// ImageBlock creates an ACP image content block with nested source structure.
+// Schema: {"type":"image","source":{"type":"base64","media_type":"...","data":"..."}}
 func ImageBlock(base64Data, mimeType string) ContentBlock {
-	return ContentBlock{Type: "image", Data: base64Data, MimeType: mimeType}
+	return ContentBlock{
+		"type": "image",
+		"source": map[string]string{
+			"type":       "base64",
+			"media_type": mimeType,
+			"data":       base64Data,
+		},
+	}
 }
 
 // --- Outgoing ---
