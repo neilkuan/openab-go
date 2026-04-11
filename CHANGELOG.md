@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.3.1](https://github.com/neilkuan/openab-go/compare/v0.3.0...v0.3.1) - 2026-04-11
+## [v0.4.0](https://github.com/neilkuan/openab-go/compare/v0.3.0...v0.4.0) - 2026-04-11
 - feat: add Telegram platform adapter by @neilkuan in https://github.com/neilkuan/openab-go/pull/23
 
 ## [v0.3.0](https://github.com/neilkuan/openab-go/compare/v0.2.1...v0.3.0) - 2026-04-11
