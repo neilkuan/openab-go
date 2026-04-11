@@ -166,35 +166,9 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 	}
 
 	// Build content blocks
-	var extraSections strings.Builder
-
-	if len(imagePaths) > 0 {
-		extraSections.WriteString("\n\n<attached_images>\n")
-		for _, p := range imagePaths {
-			extraSections.WriteString(fmt.Sprintf("- %s\n", p))
-		}
-		extraSections.WriteString("</attached_images>\nPlease read and analyze the above image(s).")
-	}
-
-	if len(audioPaths) > 0 {
-		extraSections.WriteString("\n\n<attached_audio>\n")
-		for _, p := range audioPaths {
-			extraSections.WriteString(fmt.Sprintf("- %s\n", p))
-		}
-		extraSections.WriteString("</attached_audio>\nPlease listen to and process the above audio file(s). This is a voice message from the user.")
-	}
-
-	if len(transcriptions) > 0 {
-		extraSections.WriteString("\n\n<voice_transcription>\n")
-		for _, t := range transcriptions {
-			extraSections.WriteString(t)
-			extraSections.WriteByte('\n')
-		}
-		extraSections.WriteString("</voice_transcription>\nThe above is a transcription of the user's voice message. Please respond to it.")
-	}
-
+	contentText := buildPromptContent(promptWithSender, imagePaths, audioPaths, transcriptions)
 	var contentBlocks []acp.ContentBlock
-	contentBlocks = append(contentBlocks, acp.TextBlock(promptWithSender+extraSections.String()))
+	contentBlocks = append(contentBlocks, acp.TextBlock(contentText))
 
 	slog.Debug("processing", "prompt", promptWithSender, "images", len(imagePaths), "audio_paths", len(audioPaths), "audio_transcriptions", len(transcriptions), "in_thread", inThread)
 
@@ -466,6 +440,39 @@ func getOrCreateThread(s *discordgo.Session, msg *discordgo.Message, prompt stri
 	}
 
 	return thread.ID, nil
+}
+
+// --- Prompt content builder ---
+
+func buildPromptContent(base string, imagePaths, audioPaths, transcriptions []string) string {
+	var extra strings.Builder
+
+	if len(imagePaths) > 0 {
+		extra.WriteString("\n\n<attached_images>\n")
+		for _, p := range imagePaths {
+			extra.WriteString(fmt.Sprintf("- %s\n", p))
+		}
+		extra.WriteString("</attached_images>\nPlease read and analyze the above image(s).")
+	}
+
+	if len(audioPaths) > 0 {
+		extra.WriteString("\n\n<attached_audio>\n")
+		for _, p := range audioPaths {
+			extra.WriteString(fmt.Sprintf("- %s\n", p))
+		}
+		extra.WriteString("</attached_audio>\nPlease listen to and process the above audio file(s). This is a voice message from the user.")
+	}
+
+	if len(transcriptions) > 0 {
+		extra.WriteString("\n\n<voice_transcription>\n")
+		for _, t := range transcriptions {
+			extra.WriteString(t)
+			extra.WriteByte('\n')
+		}
+		extra.WriteString("</voice_transcription>\nThe above is a transcription of the user's voice message. Please respond to it.")
+	}
+
+	return base + extra.String()
 }
 
 // --- Image attachment helpers ---
