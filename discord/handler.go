@@ -122,9 +122,10 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		}
 	}
 
-	// Download and transcribe audio attachments
+	// Download audio attachments, optionally transcribe via external API
+	var audioPaths []string
 	var transcriptions []string
-	if hasAudio && h.Transcriber != nil {
+	if hasAudio {
 		tmpDir := filepath.Join(h.Pool.WorkingDir(), ".tmp")
 		if err := os.MkdirAll(tmpDir, 0700); err != nil {
 			slog.Error("failed to create temp audio directory", "path", tmpDir, "error", err)
@@ -144,17 +145,22 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 				}
 				slog.Debug("downloaded audio", "filename", att.Filename, "path", localPath)
 
-				text, err := h.Transcriber.Transcribe(localPath)
-				// Clean up audio file immediately after transcription
-				if removeErr := os.Remove(localPath); removeErr != nil {
-					slog.Debug("failed to remove tmp audio", "path", localPath, "error", removeErr)
+				if h.Transcriber != nil {
+					// Transcribe via external API (e.g. Whisper), then clean up file
+					text, err := h.Transcriber.Transcribe(localPath)
+					if removeErr := os.Remove(localPath); removeErr != nil {
+						slog.Debug("failed to remove tmp audio", "path", localPath, "error", removeErr)
+					}
+					if err != nil {
+						slog.Error("transcription failed", "filename", att.Filename, "error", err)
+						continue
+					}
+					transcriptions = append(transcriptions, text)
+					slog.Debug("transcribed audio", "filename", att.Filename, "text_length", len(text))
+				} else {
+					// Pass file path to agent directly (agent handles audio natively)
+					audioPaths = append(audioPaths, localPath)
 				}
-				if err != nil {
-					slog.Error("transcription failed", "filename", att.Filename, "error", err)
-					continue
-				}
-				transcriptions = append(transcriptions, text)
-				slog.Debug("transcribed audio", "filename", att.Filename, "text_length", len(text))
 			}
 		}
 	}
@@ -170,6 +176,14 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		extraSections.WriteString("</attached_images>\nPlease read and analyze the above image(s).")
 	}
 
+	if len(audioPaths) > 0 {
+		extraSections.WriteString("\n\n<attached_audio>\n")
+		for _, p := range audioPaths {
+			extraSections.WriteString(fmt.Sprintf("- %s\n", p))
+		}
+		extraSections.WriteString("</attached_audio>\nPlease listen to and process the above audio file(s). This is a voice message from the user.")
+	}
+
 	if len(transcriptions) > 0 {
 		extraSections.WriteString("\n\n<voice_transcription>\n")
 		for _, t := range transcriptions {
@@ -182,7 +196,7 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 	var contentBlocks []acp.ContentBlock
 	contentBlocks = append(contentBlocks, acp.TextBlock(promptWithSender+extraSections.String()))
 
-	slog.Debug("processing", "prompt", promptWithSender, "images", len(imagePaths), "audio_transcriptions", len(transcriptions), "in_thread", inThread)
+	slog.Debug("processing", "prompt", promptWithSender, "images", len(imagePaths), "audio_paths", len(audioPaths), "audio_transcriptions", len(transcriptions), "in_thread", inThread)
 
 	var threadID string
 	if inThread {
@@ -221,10 +235,15 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 
 	result := streamPrompt(h.Pool, threadKey, contentBlocks, s, threadID, thinkingMsg.ID, reactions)
 
-	// Cleanup downloaded images
+	// Cleanup downloaded images and audio files
 	for _, p := range imagePaths {
 		if err := os.Remove(p); err != nil {
 			slog.Debug("failed to remove tmp image", "path", p, "error", err)
+		}
+	}
+	for _, p := range audioPaths {
+		if err := os.Remove(p); err != nil {
+			slog.Debug("failed to remove tmp audio", "path", p, "error", err)
 		}
 	}
 
