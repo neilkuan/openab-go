@@ -1,12 +1,12 @@
 package discord
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -92,11 +92,12 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 	senderJSON, _ := json.Marshal(senderCtx)
 	promptWithSender := fmt.Sprintf("<sender_context>\n%s\n</sender_context>\n\n%s", string(senderJSON), prompt)
 
-	// Build content blocks
-	var contentBlocks []acp.ContentBlock
-	contentBlocks = append(contentBlocks, acp.TextBlock(promptWithSender))
-
+	// Download images to .tmp/ and append paths to prompt
+	var imagePaths []string
 	if hasImages {
+		tmpDir := filepath.Join(h.Pool.WorkingDir(), ".tmp")
+		os.MkdirAll(tmpDir, 0755)
+
 		for _, att := range m.Attachments {
 			if !isImageMime(att.ContentType, att.Filename) {
 				continue
@@ -105,17 +106,31 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 				slog.Warn("skipping large image", "filename", att.Filename, "size", att.Size)
 				continue
 			}
-			data, mime, err := downloadAndEncodeImage(att.URL, att.ContentType, att.Filename)
+			localPath, err := downloadImageToFile(att.URL, att.Filename, tmpDir)
 			if err != nil {
 				slog.Error("failed to download image", "url", att.URL, "error", err)
 				continue
 			}
-			contentBlocks = append(contentBlocks, acp.ImageBlock(data, mime))
-			slog.Debug("attached image", "filename", att.Filename, "mime", mime)
+			imagePaths = append(imagePaths, localPath)
+			slog.Debug("downloaded image", "filename", att.Filename, "path", localPath)
 		}
 	}
 
-	slog.Debug("processing", "prompt", promptWithSender, "images", len(contentBlocks)-1, "in_thread", inThread)
+	// Build content blocks
+	var contentBlocks []acp.ContentBlock
+	if len(imagePaths) > 0 {
+		var imageSection strings.Builder
+		imageSection.WriteString("\n\n<attached_images>\n")
+		for _, p := range imagePaths {
+			imageSection.WriteString(fmt.Sprintf("- %s\n", p))
+		}
+		imageSection.WriteString("</attached_images>\nPlease read and analyze the above image(s).")
+		contentBlocks = append(contentBlocks, acp.TextBlock(promptWithSender+imageSection.String()))
+	} else {
+		contentBlocks = append(contentBlocks, acp.TextBlock(promptWithSender))
+	}
+
+	slog.Debug("processing", "prompt", promptWithSender, "images", len(imagePaths), "in_thread", inThread)
 
 	var threadID string
 	if inThread {
@@ -403,38 +418,37 @@ func isImageMime(contentType, filename string) bool {
 	return ok
 }
 
-func inferMimeType(contentType, filename string) string {
-	if strings.HasPrefix(contentType, "image/") {
-		return contentType
-	}
-	ext := strings.ToLower(filepath.Ext(filename))
-	if mime, ok := imageExtensions[ext]; ok {
-		return mime
-	}
-	return "image/png"
-}
-
-func downloadAndEncodeImage(url, contentType, filename string) (string, string, error) {
+func downloadImageToFile(url, filename, tmpDir string) (string, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
-		return "", "", fmt.Errorf("download failed: %w", err)
+		return "", fmt.Errorf("download failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("download returned %d", resp.StatusCode)
+		return "", fmt.Errorf("download returned %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024+1))
+	// Use timestamp + original filename to avoid collisions
+	localName := fmt.Sprintf("%d_%s", time.Now().UnixMilli(), filename)
+	localPath := filepath.Join(tmpDir, localName)
+
+	f, err := os.Create(localPath)
 	if err != nil {
-		return "", "", fmt.Errorf("read failed: %w", err)
+		return "", fmt.Errorf("create file failed: %w", err)
 	}
-	if len(data) > 10*1024*1024 {
-		return "", "", fmt.Errorf("image too large (>10MB)")
+	defer f.Close()
+
+	written, err := io.Copy(f, io.LimitReader(resp.Body, 10*1024*1024+1))
+	if err != nil {
+		os.Remove(localPath)
+		return "", fmt.Errorf("write failed: %w", err)
+	}
+	if written > 10*1024*1024 {
+		os.Remove(localPath)
+		return "", fmt.Errorf("image too large (>10MB)")
 	}
 
-	encoded := base64.StdEncoding.EncodeToString(data)
-	mime := inferMimeType(contentType, filename)
-	return encoded, mime, nil
+	return localPath, nil
 }
