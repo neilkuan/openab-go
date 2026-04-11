@@ -67,15 +67,22 @@ Chat message → Platform Adapter → SessionPool → AcpConnection (stdin/stdou
   - `handler.go` — Message handler: mention/thread detection, sender context injection (`openab.sender.v1` schema), image attachment download to `.tmp/`, streaming prompt responses with a background edit-streaming goroutine (1.5s ticker, truncates to 1900 chars during streaming, splits into multiple messages only on final edit)
   - `reactions.go` — `StatusReactionController` state machine for emoji-based status indicators (queued → thinking → tool → done/error) with debounce, stall detection (soft 🥱 / hard 😨), and tool classification (coding/web/generic)
 
-- **`config/`** — TOML configuration with `${ENV_VAR}` expansion and sensible defaults. Platform-specific configs are nested (`discord.reactions.emojis`, etc.). Having a `bot_token` in a platform section auto-enables that platform.
+- **`telegram/`** — Telegram platform adapter
+  - `adapter.go` — `Adapter` struct implementing `platform.Platform`, wraps telegram-bot-api long-polling lifecycle
+  - `handler.go` — Message handler: @mention/reply-to-bot detection in groups, all messages in private chats, sender context injection (`openab.sender.v1` schema), photo download (largest PhotoSize) and voice/audio transcription to `.tmp/`, streaming prompt responses with a background edit-streaming goroutine (2s ticker for Telegram rate limits, 4096-char message limit)
+  - `reactions.go` — `StatusReactionController` using Telegram `setMessageReaction` API with debounce and stall detection, same state machine as Discord
 
-- **`main.go`** — Loads config, creates session pool, registers all enabled `platform.Platform` adapters, starts them, runs idle-session cleanup (60s tick), and handles graceful shutdown via SIGINT/SIGTERM.
+- **`transcribe/`** — Voice-to-text via OpenAI Whisper API. Defines a `Transcriber` interface and `OpenAITranscriber` implementation. Enabled when `transcribe.api_key` is set in config; injected into platform adapters that support voice messages (Discord and Telegram).
+
+- **`config/`** — TOML configuration with `${ENV_VAR}` expansion and sensible defaults. Platform-specific configs are nested (`discord.reactions.emojis`, etc.). Having a `bot_token` in a platform section auto-enables that platform. Reference config: `config.toml.example`.
+
+- **`main.go`** — Loads config, creates session pool, creates transcriber (if configured), registers all enabled `platform.Platform` adapters, starts them, runs idle-session cleanup (60s tick), and handles graceful shutdown via SIGINT/SIGTERM.
 
 ### Adding a new platform
 
-1. Create a new package (e.g., `telegram/`) with `adapter.go` implementing `platform.Platform`
-2. Add config struct to `config/config.go` (stubs for Telegram/Teams already exist)
-3. Register in `main.go`: `if cfg.Telegram.Enabled { platforms = append(platforms, ...) }`
+1. Create a new package (e.g., `teams/`) with `adapter.go` implementing `platform.Platform`
+2. Add config struct to `config/config.go` (stub for Teams already exists)
+3. Register in `main.go`: `if cfg.Teams.Enabled { platforms = append(platforms, ...) }`
 4. `acp/` and `platform/` require no changes
 
 ### ACP lifecycle (per thread)
