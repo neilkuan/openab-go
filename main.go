@@ -70,7 +70,7 @@ func main() {
 				Prompt:   cfg.Transcribe.Prompt,
 				BaseURL:  cfg.Transcribe.BaseURL,
 			})
-			slog.Info("transcriber enabled", "provider", "openai", "model", cfg.Transcribe.Model)
+			slog.Info("🎙️transcriber enabled", "provider", "openai", "model", cfg.Transcribe.Model)
 		default:
 			slog.Warn("unknown transcribe provider, voice transcription disabled", "provider", cfg.Transcribe.Provider)
 		}
