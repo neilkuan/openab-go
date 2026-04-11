@@ -12,6 +12,7 @@ import (
 	appconfig "github.com/neilkuan/openab-go/config"
 	"github.com/neilkuan/openab-go/discord"
 	"github.com/neilkuan/openab-go/platform"
+	"github.com/neilkuan/openab-go/telegram"
 	"github.com/neilkuan/openab-go/transcribe"
 )
 
@@ -89,7 +90,17 @@ func main() {
 		slog.Info("discord adapter registered", "channels", cfg.Discord.AllowedChannels)
 	}
 
-	// Future: Telegram, Teams adapters go here
+	if cfg.Telegram.Enabled {
+		adapter, err := telegram.NewAdapter(cfg.Telegram, pool, t)
+		if err != nil {
+			slog.Error("failed to create telegram adapter", "error", err)
+			os.Exit(1)
+		}
+		platforms = append(platforms, adapter)
+		slog.Info("telegram adapter registered", "allowed_chats", cfg.Telegram.AllowedChats)
+	}
+
+	// Future: Teams adapter goes here
 
 	if len(platforms) == 0 {
 		slog.Error("no platform enabled, nothing to do")

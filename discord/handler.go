@@ -128,6 +128,10 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 	if hasAudio {
 		if h.Transcriber == nil {
 			slog.Warn("voice message received but [transcribe] is not configured, skipping audio")
+			if prompt == "" && !hasImages {
+				s.ChannelMessageSend(m.ChannelID, "⚠️ Voice transcription is not configured. Please set up `[transcribe]` in config.")
+				return
+			}
 		} else {
 			tmpDir := filepath.Join(h.Pool.WorkingDir(), ".tmp")
 			if err := os.MkdirAll(tmpDir, 0700); err != nil {

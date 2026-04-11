@@ -390,6 +390,74 @@ base_url = "https://custom.openai.com/v1"
 	}
 }
 
+func TestLoadConfig_TelegramReactionDefaults(t *testing.T) {
+	content := `
+[agent]
+command = "echo"
+
+[telegram]
+bot_token = "tg-token"
+allowed_chats = [123]
+`
+	path := writeTempConfig(t, content)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	r := cfg.Telegram.Reactions
+	if !r.Enabled {
+		t.Fatal("expected telegram reactions enabled by default")
+	}
+	if r.Emojis.Queued != "👌" {
+		t.Fatalf("expected telegram queued emoji '👌', got %q", r.Emojis.Queued)
+	}
+	if r.Emojis.Coding != "🤓" {
+		t.Fatalf("expected telegram coding emoji '🤓', got %q", r.Emojis.Coding)
+	}
+	if r.Emojis.Done != "👍" {
+		t.Fatalf("expected telegram done emoji '👍', got %q", r.Emojis.Done)
+	}
+	if r.Timing.DebounceMs != 700 {
+		t.Fatalf("expected debounce_ms 700, got %d", r.Timing.DebounceMs)
+	}
+}
+
+func TestLoadConfig_TelegramReactionCustom(t *testing.T) {
+	content := `
+[agent]
+command = "echo"
+
+[telegram]
+bot_token = "tg-token"
+allowed_chats = [123]
+
+[telegram.reactions]
+enabled = true
+
+[telegram.reactions.emojis]
+queued = "🔥"
+done = "🎉"
+`
+	path := writeTempConfig(t, content)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	r := cfg.Telegram.Reactions
+	if r.Emojis.Queued != "🔥" {
+		t.Fatalf("expected custom queued '🔥', got %q", r.Emojis.Queued)
+	}
+	if r.Emojis.Done != "🎉" {
+		t.Fatalf("expected custom done '🎉', got %q", r.Emojis.Done)
+	}
+	// Non-overridden should get defaults
+	if r.Emojis.Thinking != "🤔" {
+		t.Fatalf("expected default thinking '🤔', got %q", r.Emojis.Thinking)
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

@@ -80,12 +80,13 @@ type TranscribeConfig struct {
 	BaseURL  string `toml:"base_url"`
 }
 
-// --- Telegram (stub) ---
+// --- Telegram ---
 
 type TelegramConfig struct {
-	Enabled      bool    `toml:"enabled"`
-	BotToken     string  `toml:"bot_token"`
-	AllowedChats []int64 `toml:"allowed_chats"`
+	Enabled      bool            `toml:"enabled"`
+	BotToken     string          `toml:"bot_token"`
+	AllowedChats []int64         `toml:"allowed_chats"`
+	Reactions    ReactionsConfig `toml:"reactions"`
 }
 
 // --- Teams (stub) ---
@@ -127,6 +128,8 @@ func applyDefaults(cfg *Config) {
 	if cfg.Telegram.BotToken != "" && !cfg.Telegram.Enabled {
 		cfg.Telegram.Enabled = true
 	}
+
+	applyTelegramReactionDefaults(&cfg.Telegram.Reactions)
 }
 
 func applyTranscribeDefaults(tc *TranscribeConfig) {
@@ -170,6 +173,54 @@ func applyReactionDefaults(r *ReactionsConfig) {
 	}
 	if e.Done == "" {
 		e.Done = "🆗"
+	}
+	if e.Error == "" {
+		e.Error = "😱"
+	}
+
+	t := &r.Timing
+	if t.DebounceMs == 0 {
+		t.DebounceMs = 700
+	}
+	if t.StallSoftMs == 0 {
+		t.StallSoftMs = 10_000
+	}
+	if t.StallHardMs == 0 {
+		t.StallHardMs = 30_000
+	}
+	if t.DoneHoldMs == 0 {
+		t.DoneHoldMs = 1_500
+	}
+	if t.ErrorHoldMs == 0 {
+		t.ErrorHoldMs = 2_500
+	}
+}
+
+// applyTelegramReactionDefaults uses Telegram's standard reaction emoji set.
+// See https://core.telegram.org/bots/api#reactiontypeemoji
+func applyTelegramReactionDefaults(r *ReactionsConfig) {
+	if !r.Enabled && r.Emojis.Queued == "" {
+		r.Enabled = true
+	}
+
+	e := &r.Emojis
+	if e.Queued == "" {
+		e.Queued = "👌"
+	}
+	if e.Thinking == "" {
+		e.Thinking = "🤔"
+	}
+	if e.Tool == "" {
+		e.Tool = "🔥"
+	}
+	if e.Coding == "" {
+		e.Coding = "🤓"
+	}
+	if e.Web == "" {
+		e.Web = "⚡"
+	}
+	if e.Done == "" {
+		e.Done = "👍"
 	}
 	if e.Error == "" {
 		e.Error = "😱"
