@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.3.0](https://github.com/neilkuan/openab-go/compare/v0.2.1...v0.3.0) - 2026-04-11
+- feat: add voice message transcription support by @neilkuan in https://github.com/neilkuan/openab-go/pull/16
+
 ## [v0.2.1](https://github.com/neilkuan/openab-go/compare/v0.2.0...v0.2.1) - 2026-04-11
 - docs: add pluggable agent backends table to README by @neilkuan in https://github.com/neilkuan/openab-go/pull/13
 - docs: improve CLAUDE.md with accurate build flags and architecture details by @neilkuan in https://github.com/neilkuan/openab-go/pull/15
