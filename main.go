@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/neilkuan/openab-go/acp"
+	"github.com/neilkuan/openab-go/api"
 	appconfig "github.com/neilkuan/openab-go/config"
 	"github.com/neilkuan/openab-go/discord"
 	"github.com/neilkuan/openab-go/platform"
@@ -102,6 +103,16 @@ func main() {
 
 	// Future: Teams adapter goes here
 
+	// Start HTTP API server (optional)
+	var apiServer *api.Server
+	if cfg.API.Enabled && cfg.API.Listen != "" {
+		apiServer = api.New(cfg.API.Listen, pool)
+		if err := apiServer.Start(); err != nil {
+			slog.Error("failed to start api server", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	if len(platforms) == 0 {
 		slog.Error("no platform enabled, nothing to do")
 		os.Exit(1)
@@ -141,6 +152,11 @@ func main() {
 
 	// Cleanup
 	close(stopCleanup)
+	if apiServer != nil {
+		if err := apiServer.Stop(); err != nil {
+			slog.Warn("api server stop error", "error", err)
+		}
+	}
 	for _, p := range platforms {
 		if err := p.Stop(); err != nil {
 			slog.Warn("platform stop error", "error", err)

@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type SessionInfo struct {
+	ThreadKey    string    `json:"thread_key"`
+	SessionID    string    `json:"session_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActive   time.Time `json:"last_active"`
+	MessageCount uint64    `json:"message_count"`
+	Alive        bool      `json:"alive"`
+}
+
 type SessionPool struct {
 	connections map[string]*AcpConnection
 	mu          sync.RWMutex
@@ -56,10 +65,23 @@ func (p *SessionPool) GetOrCreate(threadID string) error {
 	}
 
 	if len(p.connections) >= p.maxSessions {
-		return fmt.Errorf("pool exhausted (%d sessions)", p.maxSessions)
+		// LRU eviction: kill the least recently used session
+		var lruKey string
+		var lruTime time.Time
+		for key, conn := range p.connections {
+			if lruTime.IsZero() || conn.LastActive.Before(lruTime) {
+				lruKey = key
+				lruTime = conn.LastActive
+			}
+		}
+		if lruKey != "" {
+			slog.Info("evicting LRU session", "evicted_key", lruKey, "last_active", lruTime)
+			p.connections[lruKey].Kill()
+			delete(p.connections, lruKey)
+		}
 	}
 
-	conn, err := SpawnConnection(p.command, p.args, p.workingDir, p.env)
+	conn, err := SpawnConnection(p.command, p.args, p.workingDir, p.env, threadID)
 	if err != nil {
 		return err
 	}
@@ -126,4 +148,64 @@ func (p *SessionPool) Shutdown() {
 	}
 	p.connections = make(map[string]*AcpConnection)
 	slog.Info("pool shutdown complete", "count", count)
+}
+
+// ListSessions returns a snapshot of all active sessions.
+func (p *SessionPool) ListSessions() []SessionInfo {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	sessions := make([]SessionInfo, 0, len(p.connections))
+	for key, conn := range p.connections {
+		sessions = append(sessions, SessionInfo{
+			ThreadKey:    key,
+			SessionID:    conn.SessionID,
+			CreatedAt:    conn.CreatedAt,
+			LastActive:   conn.LastActive,
+			MessageCount: conn.MessageCount.Load(),
+			Alive:        conn.Alive(),
+		})
+	}
+	return sessions
+}
+
+// GetSessionInfo returns metadata for a specific session.
+func (p *SessionPool) GetSessionInfo(threadKey string) (*SessionInfo, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	conn, ok := p.connections[threadKey]
+	if !ok {
+		return nil, fmt.Errorf("session not found: %s", threadKey)
+	}
+	return &SessionInfo{
+		ThreadKey:    threadKey,
+		SessionID:    conn.SessionID,
+		CreatedAt:    conn.CreatedAt,
+		LastActive:   conn.LastActive,
+		MessageCount: conn.MessageCount.Load(),
+		Alive:        conn.Alive(),
+	}, nil
+}
+
+// KillSession terminates a specific session and removes it from the pool.
+func (p *SessionPool) KillSession(threadKey string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	conn, ok := p.connections[threadKey]
+	if !ok {
+		return fmt.Errorf("session not found: %s", threadKey)
+	}
+	slog.Info("killing session", "thread_key", threadKey)
+	conn.Kill()
+	delete(p.connections, threadKey)
+	return nil
+}
+
+// Stats returns pool utilization.
+func (p *SessionPool) Stats() (active int, max int) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.connections), p.maxSessions
 }

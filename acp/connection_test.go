@@ -28,7 +28,7 @@ func TestExpandEnv(t *testing.T) {
 }
 
 func TestSpawnConnection_InvalidCommand(t *testing.T) {
-	_, err := SpawnConnection("/nonexistent/binary", nil, os.TempDir(), nil)
+	_, err := SpawnConnection("/nonexistent/binary", nil, os.TempDir(), nil, "test")
 	if err == nil {
 		t.Fatal("expected error for invalid command")
 	}

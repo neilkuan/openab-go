@@ -15,6 +15,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/neilkuan/openab-go/acp"
+	"github.com/neilkuan/openab-go/command"
 	"github.com/neilkuan/openab-go/config"
 	"github.com/neilkuan/openab-go/platform"
 	"github.com/neilkuan/openab-go/transcribe"
@@ -52,6 +53,15 @@ func (h *Handler) handleMessage(msg *tgbotapi.Message) {
 		slog.Warn("🚨👽🚨 telegram message from unlisted chat (add to allowed_chats to enable)",
 			"chat_id", chatID, "chat_type", msg.Chat.Type, "chat_title", msg.Chat.Title)
 		return
+	}
+
+	// Handle native /commands (works in both private and group chats)
+	if msg.IsCommand() {
+		cmdName := msg.Command() // "sessions", "info", "reset"
+		if cmd, ok := command.ParseCommand(cmdName); ok {
+			h.handleCommand(chatID, msg.MessageID, cmd)
+			return
+		}
 	}
 
 	isPrivate := msg.Chat.IsPrivate()
@@ -236,6 +246,37 @@ func (h *Handler) handleMessage(msg *tgbotapi.Message) {
 		reactions.SetDone()
 	} else {
 		reactions.SetError()
+	}
+}
+
+func (h *Handler) handleCommand(chatID int64, msgID int, cmd *command.Command) {
+	var response string
+
+	switch cmd.Name {
+	case command.CmdSessions:
+		response = command.ExecuteSessions(h.Pool)
+	case command.CmdInfo:
+		sessionKey := fmt.Sprintf("tg:%d", chatID)
+		response = command.ExecuteInfo(h.Pool, sessionKey)
+	case command.CmdReset:
+		sessionKey := fmt.Sprintf("tg:%d", chatID)
+		response = command.ExecuteReset(h.Pool, sessionKey)
+	default:
+		return
+	}
+
+	chunks := platform.SplitMessage(response, 4096)
+	for _, chunk := range chunks {
+		converted := convertToTelegramMarkdown(chunk)
+		reply := tgbotapi.NewMessage(chatID, converted)
+		reply.ParseMode = "Markdown"
+		reply.ReplyToMessageID = msgID
+		if _, err := h.Bot.Send(reply); err != nil {
+			// Fallback to plain text if markdown fails
+			plain := tgbotapi.NewMessage(chatID, chunk)
+			plain.ReplyToMessageID = msgID
+			h.Bot.Send(plain)
+		}
 	}
 }
 
