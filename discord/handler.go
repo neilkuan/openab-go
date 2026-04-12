@@ -15,6 +15,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/neilkuan/openab-go/acp"
+	"github.com/neilkuan/openab-go/command"
 	"github.com/neilkuan/openab-go/config"
 	"github.com/neilkuan/openab-go/platform"
 	"github.com/neilkuan/openab-go/transcribe"
@@ -69,6 +70,12 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		prompt = stripMention(prompt)
 	} else {
 		prompt = strings.TrimSpace(prompt)
+	}
+
+	// Check for bot commands (sessions, reset, info)
+	if cmd, ok := command.ParseCommand(prompt); ok {
+		h.handleCommand(s, m, cmd)
+		return
 	}
 
 	hasImages := len(m.Attachments) > 0 && hasImageAttachments(m.Attachments)
@@ -238,6 +245,29 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 
 	if result != nil {
 		s.ChannelMessageEdit(threadID, thinkingMsg.ID, fmt.Sprintf("⚠️ %v", result))
+	}
+}
+
+func (h *Handler) handleCommand(s *discordgo.Session, m *discordgo.MessageCreate, cmd *command.Command) {
+	var response string
+
+	switch cmd.Name {
+	case command.CmdSessions:
+		response = command.ExecuteSessions(h.Pool)
+	case command.CmdInfo:
+		// Use channelID as thread key (same as streamPrompt)
+		threadKey := m.ChannelID
+		response = command.ExecuteInfo(h.Pool, threadKey)
+	case command.CmdReset:
+		threadKey := m.ChannelID
+		response = command.ExecuteReset(h.Pool, threadKey)
+	default:
+		return
+	}
+
+	chunks := platform.SplitMessage(response, 2000)
+	for _, chunk := range chunks {
+		s.ChannelMessageSend(m.ChannelID, chunk)
 	}
 }
 

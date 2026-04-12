@@ -28,6 +28,9 @@ type AcpConnection struct {
 	promptMu     sync.Mutex // serialize prompts — only one at a time per connection
 	SessionID    string
 	LastActive   time.Time
+	CreatedAt    time.Time
+	MessageCount atomic.Uint64
+	ThreadKey    string
 	SessionReset bool
 	alive        atomic.Bool
 }
@@ -40,7 +43,7 @@ func expandEnv(val string) string {
 	return val
 }
 
-func SpawnConnection(command string, args []string, workingDir string, env map[string]string) (*AcpConnection, error) {
+func SpawnConnection(command string, args []string, workingDir string, env map[string]string, threadKey string) (*AcpConnection, error) {
 	slog.Info("spawning agent", "cmd", command, "args", args, "cwd", workingDir)
 
 	cmd := exec.Command(command, args...)
@@ -67,12 +70,15 @@ func SpawnConnection(command string, args []string, workingDir string, env map[s
 		return nil, fmt.Errorf("failed to spawn %s: %w", command, err)
 	}
 
+	now := time.Now()
 	conn := &AcpConnection{
 		cmd:        cmd,
 		stdin:      stdinPipe,
 		stderrBuf:  &stderrBuf,
 		pending:    make(map[uint64]chan *JsonRpcMessage),
-		LastActive: time.Now(),
+		LastActive: now,
+		CreatedAt:  now,
+		ThreadKey:  threadKey,
 	}
 	conn.nextID.Store(1)
 	conn.alive.Store(true)
@@ -295,6 +301,7 @@ func (c *AcpConnection) SessionPrompt(content []ContentBlock) (<-chan *JsonRpcMe
 	c.promptMu.Lock() // released by PromptDone
 
 	c.LastActive = time.Now()
+	c.MessageCount.Add(1)
 
 	if c.SessionID == "" {
 		c.promptMu.Unlock()

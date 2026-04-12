@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Agent      AgentConfig      `toml:"agent"`
 	Pool       PoolConfig       `toml:"pool"`
+	API        APIConfig        `toml:"api"`
 	Transcribe TranscribeConfig `toml:"transcribe"`
 	Discord    DiscordConfig    `toml:"discord"`
 	Telegram   TelegramConfig   `toml:"telegram"`
@@ -66,6 +67,13 @@ type ReactionTiming struct {
 	StallHardMs int64 `toml:"stall_hard_ms"`
 	DoneHoldMs  int64 `toml:"done_hold_ms"`
 	ErrorHoldMs int64 `toml:"error_hold_ms"`
+}
+
+// --- API ---
+
+type APIConfig struct {
+	Enabled bool   `toml:"enabled"`
+	Listen  string `toml:"listen"`
 }
 
 // --- Transcribe ---

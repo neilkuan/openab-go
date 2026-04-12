@@ -15,6 +15,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/neilkuan/openab-go/acp"
+	"github.com/neilkuan/openab-go/command"
 	"github.com/neilkuan/openab-go/config"
 	"github.com/neilkuan/openab-go/platform"
 	"github.com/neilkuan/openab-go/transcribe"
@@ -82,6 +83,12 @@ func (h *Handler) handleMessage(msg *tgbotapi.Message) {
 		prompt = stripBotMention(prompt, h.Bot.Self.UserName)
 	} else {
 		prompt = strings.TrimSpace(prompt)
+	}
+
+	// Check for bot commands (sessions, reset, info)
+	if cmd, ok := command.ParseCommand(prompt); ok {
+		h.handleCommand(chatID, msg.MessageID, cmd)
+		return
 	}
 
 	hasPhoto := len(msg.Photo) > 0
@@ -236,6 +243,30 @@ func (h *Handler) handleMessage(msg *tgbotapi.Message) {
 		reactions.SetDone()
 	} else {
 		reactions.SetError()
+	}
+}
+
+func (h *Handler) handleCommand(chatID int64, msgID int, cmd *command.Command) {
+	var response string
+
+	switch cmd.Name {
+	case command.CmdSessions:
+		response = command.ExecuteSessions(h.Pool)
+	case command.CmdInfo:
+		sessionKey := fmt.Sprintf("tg:%d", chatID)
+		response = command.ExecuteInfo(h.Pool, sessionKey)
+	case command.CmdReset:
+		sessionKey := fmt.Sprintf("tg:%d", chatID)
+		response = command.ExecuteReset(h.Pool, sessionKey)
+	default:
+		return
+	}
+
+	chunks := platform.SplitMessage(response, 4096)
+	for _, chunk := range chunks {
+		reply := tgbotapi.NewMessage(chatID, chunk)
+		reply.ReplyToMessageID = msgID
+		h.Bot.Send(reply)
 	}
 }
 

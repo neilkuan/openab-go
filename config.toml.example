@@ -73,6 +73,11 @@ working_dir = "/home/agent"
 max_sessions = 10
 session_ttl_hours = 24
 
+# HTTP API for session monitoring (optional)
+# [api]
+# enabled = true
+# listen = ":8080"
+
 # Voice transcription (optional)
 # Set api_key to enable voice message transcription via OpenAI Whisper
 # [transcribe]

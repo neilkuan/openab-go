@@ -15,6 +15,7 @@ This is a **Go rewrite** of [openab](https://github.com/neilkuan/openab) (origin
 - **Real-time edit streaming** — updates messages as the agent works (Discord: 1.5s, Telegram: 2s)
 - **Emoji status reactions** — processing progress via platform-native reactions
 - **Session pool** — one CLI process per thread/chat, automatic lifecycle management
+- **Session management** — bot commands (`sessions`/`reset`/`info`), LRU eviction, HTTP API for monitoring
 - **ACP protocol** — JSON-RPC over stdio
 - **Kubernetes ready** — includes Dockerfile for containerized deployment
 
@@ -104,6 +105,44 @@ See [`config.toml.example`](config.toml.example) for the full reference includin
 
 ---
 
+##### Session Management
+
+Built-in bot commands and HTTP API for managing agent sessions.
+
+###### Bot Commands
+
+Send these as messages to the bot (with @mention in groups):
+
+| Command | Description |
+|---------|-------------|
+| `sessions` | List all active sessions with stats |
+| `info` | Show current thread/chat session details |
+| `reset` | Kill current session (new one on next message) |
+
+###### HTTP API (Optional)
+
+Enable in config:
+
+```toml
+[api]
+enabled = true
+listen = ":8080"
+```
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check with pool stats |
+| `/api/sessions` | GET | List all sessions as JSON |
+| `/api/sessions/{key}` | DELETE | Kill a specific session |
+
+###### Pool Behavior
+
+- **LRU eviction** — when pool is full, the least recently used session is evicted automatically
+- **TTL cleanup** — idle sessions are cleaned up after `session_ttl_hours` (default: 24h)
+- **Per-session stats** — created time, last active, message count
+
+---
+
 ##### Discord vs Telegram
 
 | | Discord | Telegram |
@@ -183,7 +222,11 @@ openab-go/
 ├── acp/
 │   ├── protocol.go      # JSON-RPC types, ACP event classification
 │   ├── connection.go    # Child process management, stdio JSON-RPC, auto-permission
-│   └── pool.go          # Session pool: get-or-create, idle cleanup, shutdown
+│   └── pool.go          # Session pool: get-or-create, LRU eviction, idle cleanup
+├── command/
+│   └── command.go       # Bot command parsing and execution (sessions/reset/info)
+├── api/
+│   └── server.go        # HTTP API server for session monitoring
 ├── transcribe/
 │   └── transcribe.go    # Transcriber interface, OpenAI Whisper implementation
 ├── discord/
