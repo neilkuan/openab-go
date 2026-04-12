@@ -203,6 +203,8 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 				}
 				if att.Size > 25*1024*1024 {
 					slog.Warn("skipping large file attachment", "filename", att.Filename, "size", att.Size)
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("⚠️ File `%s` exceeds the 25 MB limit (%d MB), skipping.",
+						att.Filename, att.Size/(1024*1024)))
 					continue
 				}
 				localPath, err := downloadFileToDisk(att.URL, att.Filename, tmpDir)

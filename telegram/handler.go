@@ -225,6 +225,12 @@ func (h *Handler) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mes
 			// Telegram Bot API getFile limit is 20MB
 			if doc.FileSize > 20*1024*1024 {
 				slog.Warn("skipping large document", "filename", doc.FileName, "size", doc.FileSize)
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:          chatID,
+					MessageThreadID: threadID,
+					Text:            fmt.Sprintf("⚠️ File `%s` exceeds the 20 MB limit (%d MB), skipping.", doc.FileName, doc.FileSize/(1024*1024)),
+					ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+				})
 			} else {
 				filename := doc.FileName
 				if filename == "" {
