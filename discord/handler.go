@@ -199,7 +199,7 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		return
 	}
 
-	threadKey := threadID
+	threadKey := buildSessionKey(threadID)
 	if err := h.Pool.GetOrCreate(threadKey); err != nil {
 		s.ChannelMessageEdit(threadID, thinkingMsg.ID, fmt.Sprintf("⚠️ Failed to start agent: %v", err))
 		slog.Error("pool error", "error", err)
@@ -255,11 +255,10 @@ func (h *Handler) handleCommand(s *discordgo.Session, m *discordgo.MessageCreate
 	case command.CmdSessions:
 		response = command.ExecuteSessions(h.Pool)
 	case command.CmdInfo:
-		// Use channelID as thread key (same as streamPrompt)
-		threadKey := m.ChannelID
+		threadKey := buildSessionKey(m.ChannelID)
 		response = command.ExecuteInfo(h.Pool, threadKey)
 	case command.CmdReset:
-		threadKey := m.ChannelID
+		threadKey := buildSessionKey(m.ChannelID)
 		response = command.ExecuteReset(h.Pool, threadKey)
 	default:
 		return
@@ -418,6 +417,10 @@ func streamPrompt(
 
 		return nil
 	})
+}
+
+func buildSessionKey(threadID string) string {
+	return fmt.Sprintf("discord:%s", threadID)
 }
 
 func composeDisplay(toolLines []string, text string) string {
