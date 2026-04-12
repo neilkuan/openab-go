@@ -52,19 +52,25 @@ func ExecuteSessions(pool *acp.SessionPool) string {
 		return sb.String()
 	}
 
-	for _, s := range sessions {
+	for i, s := range sessions {
 		status := "alive"
 		if !s.Alive {
 			status = "dead"
 		}
 		sb.WriteString(fmt.Sprintf(
-			"`%s` | %s | created %s ago | active %s ago | msgs: %d\n",
+			"`%s` [%s]\n"+
+				"  created %s ago | active %s ago | msgs: %d",
 			s.ThreadKey,
 			status,
 			formatDuration(time.Since(s.CreatedAt)),
 			formatDuration(time.Since(s.LastActive)),
 			s.MessageCount,
 		))
+		if i < len(sessions)-1 {
+			sb.WriteString("\n\n")
+		} else {
+			sb.WriteByte('\n')
+		}
 	}
 	return sb.String()
 }

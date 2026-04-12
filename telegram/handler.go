@@ -264,9 +264,16 @@ func (h *Handler) handleCommand(chatID int64, msgID int, cmd *command.Command) {
 
 	chunks := platform.SplitMessage(response, 4096)
 	for _, chunk := range chunks {
-		reply := tgbotapi.NewMessage(chatID, chunk)
+		converted := convertToTelegramMarkdown(chunk)
+		reply := tgbotapi.NewMessage(chatID, converted)
+		reply.ParseMode = "Markdown"
 		reply.ReplyToMessageID = msgID
-		h.Bot.Send(reply)
+		if _, err := h.Bot.Send(reply); err != nil {
+			// Fallback to plain text if markdown fails
+			plain := tgbotapi.NewMessage(chatID, chunk)
+			plain.ReplyToMessageID = msgID
+			h.Bot.Send(plain)
+		}
 	}
 }
 
