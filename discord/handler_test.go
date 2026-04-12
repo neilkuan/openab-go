@@ -884,26 +884,6 @@ func TestDownloadFileToDisk_NonOKStatus(t *testing.T) {
 	}
 }
 
-func TestDownloadFileToDisk_TooLarge(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		chunk := make([]byte, 1024*1024)
-		for i := 0; i < 25; i++ {
-			w.Write(chunk)
-		}
-		w.Write([]byte("xx"))
-	}))
-	defer server.Close()
-
-	tmpDir := t.TempDir()
-	_, err := downloadFileToDisk(server.URL, "huge.bin", tmpDir)
-	if err == nil {
-		t.Fatal("expected error for oversized file")
-	}
-	if !strings.Contains(err.Error(), "too large") {
-		t.Errorf("expected 'too large' in error, got %q", err.Error())
-	}
-}
-
 func TestDownloadFileToDisk_PathTraversal(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("data"))

@@ -201,12 +201,6 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 				if isImageMime(att.ContentType, att.Filename) || isAudioMime(att.ContentType, att.Filename) {
 					continue
 				}
-				if att.Size > 25*1024*1024 {
-					slog.Warn("skipping large file attachment", "filename", att.Filename, "size", att.Size)
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("⚠️ File `%s` exceeds the 25 MB limit (%d MB), skipping.",
-						att.Filename, att.Size/(1024*1024)))
-					continue
-				}
 				localPath, err := downloadFileToDisk(att.URL, att.Filename, tmpDir)
 				if err != nil {
 					slog.Error("failed to download file attachment", "url", att.URL, "error", err)
@@ -865,17 +859,12 @@ func downloadFileToDisk(url, filename, tmpDir string) (string, error) {
 		return "", fmt.Errorf("create file failed: %w", err)
 	}
 
-	// Discord attachment limit is 25MB
-	written, err := io.Copy(f, io.LimitReader(resp.Body, 25*1024*1024+1))
-	if err != nil {
+	// Discord client already enforces upload limits (25/50/100 MB by boost level),
+	// so no server-side size check needed here — just stream the file.
+	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
 		os.Remove(localPath)
 		return "", fmt.Errorf("write failed: %w", err)
-	}
-	if written > 25*1024*1024 {
-		f.Close()
-		os.Remove(localPath)
-		return "", fmt.Errorf("file too large (>25MB)")
 	}
 
 	if err := f.Close(); err != nil {
