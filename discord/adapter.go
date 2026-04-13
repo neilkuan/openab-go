@@ -6,6 +6,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/neilkuan/openab-go/acp"
 	"github.com/neilkuan/openab-go/config"
+	"github.com/neilkuan/openab-go/markdown"
 	"github.com/neilkuan/openab-go/stt"
 	"github.com/neilkuan/openab-go/tts"
 )
@@ -15,7 +16,7 @@ type Adapter struct {
 	session *discordgo.Session
 }
 
-func NewAdapter(cfg config.DiscordConfig, pool *acp.SessionPool, transcriber stt.Transcriber, synthesizer tts.Synthesizer, voiceStore *tts.VoiceStore, ttsCfg config.TTSConfig) (*Adapter, error) {
+func NewAdapter(cfg config.DiscordConfig, pool *acp.SessionPool, transcriber stt.Transcriber, synthesizer tts.Synthesizer, voiceStore *tts.VoiceStore, ttsCfg config.TTSConfig, mdCfg config.MarkdownConfig) (*Adapter, error) {
 	dg, err := discordgo.New("Bot " + cfg.BotToken)
 	if err != nil {
 		return nil, err
@@ -37,15 +38,16 @@ func NewAdapter(cfg config.DiscordConfig, pool *acp.SessionPool, transcriber stt
 	}
 
 	h := &Handler{
-		Pool:            pool,
-		AllowedChannels: allowed,
-		AllowedUserIDs:  allowedUsers,
-		AllowAnyUser:    allowAnyUser,
-		ReactionsConfig: cfg.Reactions,
-		Transcriber:     transcriber,
-		Synthesizer:     synthesizer,
-		VoiceStore:      voiceStore,
-		TTSConfig:       ttsCfg,
+		Pool:             pool,
+		AllowedChannels:  allowed,
+		AllowedUserIDs:   allowedUsers,
+		AllowAnyUser:     allowAnyUser,
+		ReactionsConfig:  cfg.Reactions,
+		Transcriber:      transcriber,
+		Synthesizer:      synthesizer,
+		VoiceStore:       voiceStore,
+		TTSConfig:        ttsCfg,
+		MarkdownTableMode: markdown.ParseMode(mdCfg.Tables),
 	}
 
 	dg.Identify.Intents = discordgo.IntentsGuildMessages |

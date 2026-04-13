@@ -17,6 +17,7 @@ import (
 	"github.com/neilkuan/openab-go/acp"
 	"github.com/neilkuan/openab-go/command"
 	"github.com/neilkuan/openab-go/config"
+	"github.com/neilkuan/openab-go/markdown"
 	"github.com/neilkuan/openab-go/platform"
 	"github.com/neilkuan/openab-go/stt"
 	"github.com/neilkuan/openab-go/tts"
@@ -34,6 +35,9 @@ type Handler struct {
 	Synthesizer     tts.Synthesizer
 	VoiceStore      *tts.VoiceStore
 	TTSConfig       config.TTSConfig
+	// MarkdownTableMode controls how GFM tables in agent replies are rewritten
+	// before being sent to Discord. See markdown.TableMode for options.
+	MarkdownTableMode markdown.TableMode
 }
 
 func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -332,7 +336,7 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 	)
 	reactions.SetQueued()
 
-	finalText, result := streamPrompt(h.Pool, threadKey, contentBlocks, s, threadID, thinkingMsg.ID, reactions)
+	finalText, result := streamPrompt(h.Pool, threadKey, contentBlocks, s, threadID, thinkingMsg.ID, reactions, h.MarkdownTableMode)
 
 	// Cleanup downloaded images and file attachments
 	for _, p := range imagePaths {
@@ -504,6 +508,7 @@ func streamPrompt(
 	channelID string,
 	msgID string,
 	reactions *StatusReactionController,
+	tableMode markdown.TableMode,
 ) (string, error) {
 	var finalText string
 	err := pool.WithConnection(threadKey, func(conn *acp.AcpConnection) error {
@@ -629,6 +634,10 @@ func streamPrompt(
 		if finalContent == "" {
 			finalContent = "_(no response)_"
 		}
+		// Rewrite GFM tables before splitting — Discord ignores table syntax,
+		// so we wrap them in fenced code blocks (or convert to bullets) for
+		// readable rendering. Skipped during streaming preview.
+		finalContent = markdown.ConvertTables(finalContent, tableMode)
 
 		chunks := platform.SplitMessage(finalContent, 2000)
 		for i, chunk := range chunks {

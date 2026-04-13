@@ -19,6 +19,7 @@ import (
 	"github.com/neilkuan/openab-go/acp"
 	"github.com/neilkuan/openab-go/command"
 	"github.com/neilkuan/openab-go/config"
+	"github.com/neilkuan/openab-go/markdown"
 	"github.com/neilkuan/openab-go/platform"
 	"github.com/neilkuan/openab-go/stt"
 	"github.com/neilkuan/openab-go/tts"
@@ -37,7 +38,10 @@ type Handler struct {
 	Synthesizer     tts.Synthesizer
 	VoiceStore      *tts.VoiceStore
 	TTSConfig       config.TTSConfig
-	botUser         *models.User
+	// MarkdownTableMode controls how GFM tables in agent replies are rewritten
+	// before being sent to Telegram. See markdown.TableMode for options.
+	MarkdownTableMode markdown.TableMode
+	botUser           *models.User
 }
 
 func (h *Handler) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -572,6 +576,10 @@ func (h *Handler) streamPrompt(
 		if finalContent == "" {
 			finalContent = "_(no response)_"
 		}
+		// Rewrite GFM tables before splitting — Telegram Markdown v1 doesn't
+		// render table syntax, so we wrap them in fenced blocks (or convert
+		// to bullets) for readable rendering. Skipped during streaming preview.
+		finalContent = markdown.ConvertTables(finalContent, h.MarkdownTableMode)
 
 		chunks := platform.SplitMessage(finalContent, 4096)
 		for i, chunk := range chunks {

@@ -84,6 +84,16 @@ working_dir = "/home/agent"
 max_sessions = 10
 session_ttl_hours = 24
 
+# Markdown rewrite pipeline applied to LLM replies before they are sent
+# to a chat platform. Discord and Telegram both ignore GFM table syntax,
+# so the bot reformats tables for readable rendering.
+#
+# tables = "code"     wrap each table in a fenced ``` block (default)
+# tables = "bullets"  convert each row into "• Header: Value" bullet lines
+# tables = "off"      pass through, no conversion
+# [markdown]
+# tables = "code"
+
 # HTTP API for session monitoring (optional)
 # [api]
 # enabled = true

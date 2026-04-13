@@ -10,6 +10,7 @@ require (
 
 require (
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/yuin/goldmark v1.8.2 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 )
