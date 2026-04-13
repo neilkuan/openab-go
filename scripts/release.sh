@@ -89,6 +89,47 @@ detect_bump() {
   fi
 }
 
+# --- Rebase an existing open Release PR onto main ---
+# Called when the caller (CI on push to main, or a manual run) detects an open
+# release/* PR. Rebases the release branch onto current main so the VERSION
+# bump commit sits on top of the latest main — including any fix PRs merged
+# after the release PR was first opened.
+update_existing_release_pr() {
+  local release_branch="$1"
+  info "Open Release PR detected on branch: $release_branch"
+  info "Rebasing $release_branch onto origin/main to include latest commits"
+
+  git fetch origin "$release_branch" main --quiet
+
+  # Reset local release branch to match remote, then rebase
+  git checkout -B "$release_branch" "origin/$release_branch"
+
+  # Count commits that would move in the rebase; if main already contains the
+  # tip of release branch, there is nothing to do.
+  local ahead behind
+  ahead="$(git rev-list --count "origin/main..HEAD" || echo 0)"
+  behind="$(git rev-list --count "HEAD..origin/main" || echo 0)"
+  info "Release branch ahead of main by $ahead, behind by $behind commits"
+
+  if [[ "$behind" -eq 0 ]]; then
+    info "No new commits on main — release branch is already up to date."
+    return
+  fi
+
+  if ! git rebase origin/main; then
+    git rebase --abort || true
+    die "Rebase of $release_branch onto main failed. Resolve manually."
+  fi
+
+  if $DRY_RUN; then
+    echo "[dry-run] git push --force-with-lease origin $release_branch"
+    return
+  fi
+
+  git push --force-with-lease origin "$release_branch"
+  info "Updated $release_branch (rebased onto origin/main)"
+}
+
 # --- RC Mode ---
 do_rc() {
   local ver
@@ -190,12 +231,16 @@ do_stable() {
     die "Branch $release_branch already exists on remote"
   fi
 
-  # Check if there's already an open Release PR
+  # Check if there's already an open Release PR — if so, rebase it onto main
+  # and force-push so it always reflects the latest state.
+  # This handles the common case where a fix PR is merged into main after the
+  # Release PR is opened: without this, merging the stale Release PR would tag
+  # a commit that does not include the fix.
   local open_prs
   open_prs="$(gh pr list --base main --state open --json headRefName --jq '.[].headRefName' 2>/dev/null | grep '^release/' || true)"
   if [[ -n "$open_prs" ]]; then
-    warn "Open Release PR already exists: $open_prs"
-    die "Close or merge the existing Release PR first."
+    update_existing_release_pr "$open_prs"
+    exit 0
   fi
 
   if $DRY_RUN; then
