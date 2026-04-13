@@ -79,13 +79,14 @@ Version bump is auto-detected from conventional commits:
 
 ## Image Tags
 
-Each build produces four multi-arch image variants:
+Each build produces five multi-arch image variants:
 
 ```
 ghcr.io/neilkuan/openab-go:<tag>          # kiro-cli
 ghcr.io/neilkuan/openab-go-codex:<tag>    # codex
 ghcr.io/neilkuan/openab-go-claude:<tag>   # claude
 ghcr.io/neilkuan/openab-go-gemini:<tag>   # gemini
+ghcr.io/neilkuan/openab-go-copilot:<tag>  # GitHub Copilot CLI
 ```
 
 Tag patterns:

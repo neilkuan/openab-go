@@ -2,7 +2,7 @@
 
 [繁體中文](README-zh-tw.md) | English
 
-A lightweight, secure, cloud-native **ACP (Agent Client Protocol) bridge** that connects **Discord** and **Telegram** with any ACP-compatible coding CLI — [Kiro CLI](https://kiro.dev), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), [Gemini CLI](https://github.com/google-gemini/gemini-cli), and more.
+A lightweight, secure, cloud-native **ACP (Agent Client Protocol) bridge** that connects **Discord** and **Telegram** with any ACP-compatible coding CLI — [Kiro CLI](https://kiro.dev), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [GitHub Copilot CLI](https://github.com/github/copilot-cli), and more.
 
 This is a **Go rewrite** of [openab](https://github.com/openabdev/openab) (originally in Rust).
 
@@ -10,7 +10,7 @@ This is a **Go rewrite** of [openab](https://github.com/openabdev/openab) (origi
 
 ##### Features
 
-- **Pluggable agent backends** — Kiro, Claude Code, Codex, Gemini (any ACP-compatible CLI)
+- **Pluggable agent backends** — Kiro, Claude Code, Codex, Gemini, GitHub Copilot (any ACP-compatible CLI)
 - **Discord integration** — @mention triggers, auto thread creation, multi-turn conversations
 - **Telegram integration** — @mention / reply-to-bot in groups, private chat, voice auto-accepted in groups, forum topic support (one session per topic)
 - **Voice message transcription** — transcribes voice messages via OpenAI Whisper API (Discord & Telegram)
@@ -25,7 +25,7 @@ This is a **Go rewrite** of [openab](https://github.com/openabdev/openab) (origi
 
 ##### Pluggable Agent Backends
 
-Supports Kiro CLI, Claude Code, Codex, Gemini, and any ACP-compatible CLI.
+Supports Kiro CLI, Claude Code, Codex, Gemini, GitHub Copilot CLI, and any ACP-compatible CLI.
 
 | Agent key | CLI | ACP Adapter | Auth |
 |---|---|---|---|
@@ -33,6 +33,7 @@ Supports Kiro CLI, Claude Code, Codex, Gemini, and any ACP-compatible CLI.
 | `codex` | Codex | [@zed-industries/codex-acp](https://github.com/zed-industries/codex-acp) | `codex login --device-auth` |
 | `claude` | Claude Code | [@agentclientprotocol/claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp) | `claude auth login` or `claude setup-token` |
 | `gemini` | Gemini CLI | Native `gemini --acp` | Google OAuth or `GEMINI_API_KEY` |
+| `copilot` ⚠️ | GitHub Copilot CLI | Native `copilot --acp --stdio` | `gh auth login -p https -w` (requires paid Copilot subscription; ACP support in public preview) |
 
 ---
 
@@ -200,7 +201,7 @@ listen = ":8080"
 
 ##### Docker
 
-Four image variants are published for each release:
+Five image variants are published for each release:
 
 | Image | Agent |
 |---|---|
@@ -208,6 +209,7 @@ Four image variants are published for each release:
 | `ghcr.io/neilkuan/openab-go-claude` | Claude Code |
 | `ghcr.io/neilkuan/openab-go-codex` | Codex |
 | `ghcr.io/neilkuan/openab-go-gemini` | Gemini CLI |
+| `ghcr.io/neilkuan/openab-go-copilot` | GitHub Copilot CLI |
 
 ```bash
 docker run -v $(pwd)/config.toml:/etc/openab-go/config.toml \
@@ -274,6 +276,7 @@ openab-go/
 ├── Dockerfile.claude    # Claude Code variant
 ├── Dockerfile.codex     # Codex variant
 ├── Dockerfile.gemini    # Gemini CLI variant
+├── Dockerfile.copilot   # GitHub Copilot CLI variant
 ├── config.toml.example  # Configuration reference
 ├── VERSION              # Semver version
 └── RELEASING.md         # Release workflow documentation
@@ -297,7 +300,7 @@ openab-go/
 Releases follow a **"what you tested is what you ship"** philosophy using `scripts/release.sh`:
 
 1. **Merge PRs to main** → `release.yml` auto-opens a Release PR (`release/v0.4.1`, only bumps `VERSION`)
-2. **Create RC tag** → checkout release branch → `./scripts/release.sh --rc` → full build of 4 image variants x 2 platforms
+2. **Create RC tag** → checkout release branch → `./scripts/release.sh --rc` → full build of 5 image variants x 2 platforms
 3. **Merge the Release PR** → `tag-on-merge.yml` auto-tags stable → promotes pre-release images (no rebuild)
 
 See [RELEASING.md](RELEASING.md) for the full workflow.
