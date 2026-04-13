@@ -102,7 +102,7 @@ func main() {
 	var platforms []platform.Platform
 
 	if cfg.Discord.Enabled {
-		adapter, err := discord.NewAdapter(cfg.Discord, pool, t, synth, voiceStore, cfg.TTS)
+		adapter, err := discord.NewAdapter(cfg.Discord, pool, t, synth, voiceStore, cfg.TTS, cfg.Markdown)
 		if err != nil {
 			slog.Error("failed to create discord adapter", "error", err)
 			os.Exit(1)
@@ -114,7 +114,7 @@ func main() {
 	}
 
 	if cfg.Telegram.Enabled {
-		adapter, err := telegram.NewAdapter(cfg.Telegram, pool, t, synth, voiceStore, cfg.TTS)
+		adapter, err := telegram.NewAdapter(cfg.Telegram, pool, t, synth, voiceStore, cfg.TTS, cfg.Markdown)
 		if err != nil {
 			slog.Error("failed to create telegram adapter", "error", err)
 			os.Exit(1)

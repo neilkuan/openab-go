@@ -17,9 +17,21 @@ type Config struct {
 	API        APIConfig        `toml:"api"`
 	STT     STTConfig     `toml:"stt"`
 	TTS     TTSConfig     `toml:"tts"`
+	Markdown   MarkdownConfig   `toml:"markdown"`
 	Discord DiscordConfig `toml:"discord"`
 	Telegram   TelegramConfig   `toml:"telegram"`
 	Teams      TeamsConfig      `toml:"teams"`
+}
+
+// --- Markdown ---
+
+// MarkdownConfig controls the channel-agnostic markdown rewrite pipeline applied
+// to LLM responses before they are sent to a chat platform.
+//
+// `tables` accepts "code" (wrap in fenced block, default), "bullets" (one bullet
+// per cell), or "off" (disable conversion).
+type MarkdownConfig struct {
+	Tables string `toml:"tables"`
 }
 
 // --- Shared ---
@@ -149,6 +161,11 @@ func applyDefaults(cfg *Config) {
 
 	// TTS (Text-to-Speech)
 	applyTTSDefaults(&cfg.TTS)
+
+	// Markdown pipeline
+	if cfg.Markdown.Tables == "" {
+		cfg.Markdown.Tables = "code"
+	}
 
 	// Discord — if the section is present with a token, default to enabled
 	if cfg.Discord.BotToken != "" && !cfg.Discord.Enabled {

@@ -10,6 +10,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/neilkuan/openab-go/acp"
 	"github.com/neilkuan/openab-go/config"
+	"github.com/neilkuan/openab-go/markdown"
 	"github.com/neilkuan/openab-go/stt"
 	"github.com/neilkuan/openab-go/tts"
 )
@@ -21,7 +22,7 @@ type Adapter struct {
 	cancel  context.CancelFunc
 }
 
-func NewAdapter(cfg config.TelegramConfig, pool *acp.SessionPool, transcriber stt.Transcriber, synthesizer tts.Synthesizer, voiceStore *tts.VoiceStore, ttsCfg config.TTSConfig) (*Adapter, error) {
+func NewAdapter(cfg config.TelegramConfig, pool *acp.SessionPool, transcriber stt.Transcriber, synthesizer tts.Synthesizer, voiceStore *tts.VoiceStore, ttsCfg config.TTSConfig, mdCfg config.MarkdownConfig) (*Adapter, error) {
 	allowed := make(map[int64]bool, len(cfg.AllowedChats))
 	for _, id := range cfg.AllowedChats {
 		allowed[id] = true
@@ -42,15 +43,16 @@ func NewAdapter(cfg config.TelegramConfig, pool *acp.SessionPool, transcriber st
 	}
 
 	h := &Handler{
-		Pool:            pool,
-		AllowedChats:    allowed,
-		AllowedUserIDs:  allowedUsers,
-		AllowAnyUser:    allowAnyUser,
-		ReactionsConfig: cfg.Reactions,
-		Transcriber:     transcriber,
-		Synthesizer:     synthesizer,
-		VoiceStore:      voiceStore,
-		TTSConfig:       ttsCfg,
+		Pool:              pool,
+		AllowedChats:      allowed,
+		AllowedUserIDs:    allowedUsers,
+		AllowAnyUser:      allowAnyUser,
+		ReactionsConfig:   cfg.Reactions,
+		Transcriber:       transcriber,
+		Synthesizer:       synthesizer,
+		VoiceStore:        voiceStore,
+		TTSConfig:         ttsCfg,
+		MarkdownTableMode: markdown.ParseMode(mdCfg.Tables),
 	}
 
 	b, err := bot.New(cfg.BotToken,
