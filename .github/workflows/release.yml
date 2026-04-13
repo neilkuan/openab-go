@@ -50,22 +50,11 @@ jobs:
             echo "No stable tag found, treating as first release"
           fi
 
-      - name: Check for existing Release PR
+      - name: Create or update Release PR
+        # Let release.sh decide whether to create a new PR or rebase the
+        # existing open release branch onto main — that way a fix merged after
+        # the release PR was opened still lands in the release PR.
         if: steps.skip.outputs.skip != 'true' && steps.check.outputs.commits != '0'
-        id: existing
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          OPEN=$(gh pr list --base main --state open --json headRefName --jq '.[].headRefName' | grep '^release/' || true)
-          if [ -n "$OPEN" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Release PR already open: $OPEN"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create Release PR
-        if: steps.skip.outputs.skip != 'true' && steps.check.outputs.commits != '0' && steps.existing.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
