@@ -55,6 +55,15 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		isMentioned = strings.Contains(m.Content, fmt.Sprintf("<@%s>", botID))
 	}
 
+	slog.Debug("discord message received",
+		"author_id", m.Author.ID,
+		"author", m.Author.Username,
+		"channel_id", channelID,
+		"guild_id", m.GuildID,
+		"mentioned", isMentioned,
+		"content_len", len(m.Content),
+		"attachments", len(m.Attachments))
+
 	// AllowedUserIDs (or AllowAnyUser for "*"), when set, overrides the
 	// channel-based gate: listed users (or any user for "*") are accepted
 	// from any channel/thread.
@@ -327,8 +336,28 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 }
 
 func (h *Handler) OnReady(s *discordgo.Session, r *discordgo.Ready) {
-	slog.Info("discord bot connected", "user", r.User.Username)
+	slog.Info("✅ discord bot connected",
+		"user", r.User.Username,
+		"user_id", r.User.ID,
+		"session_id", r.SessionID,
+		"guilds", len(r.Guilds),
+		"api_version", r.Version)
+	// Log each guild we're in at debug level — handy for confirming the bot
+	// actually has access to the expected servers / channels.
+	for _, g := range r.Guilds {
+		slog.Debug("discord guild available", "guild_id", g.ID, "unavailable", g.Unavailable)
+	}
 	h.registerSlashCommands(s, r.User.ID)
+}
+
+// OnDisconnect fires when the Discord gateway websocket drops.
+func (h *Handler) OnDisconnect(s *discordgo.Session, d *discordgo.Disconnect) {
+	slog.Warn("⚠️  discord gateway disconnected")
+}
+
+// OnResumed fires when the gateway session resumes after a disconnect.
+func (h *Handler) OnResumed(s *discordgo.Session, r *discordgo.Resumed) {
+	slog.Info("🔄 discord gateway resumed")
 }
 
 // slashCommands defines the Discord Application Commands to register.
