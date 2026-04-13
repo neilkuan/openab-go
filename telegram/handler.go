@@ -29,6 +29,9 @@ type Handler struct {
 	Pool            *acp.SessionPool
 	AllowedChats    map[int64]bool
 	AllowedUserIDs  map[int64]bool
+	// AllowAnyUser is true when allowed_user_id contains "*" — anyone can talk
+	// to the bot from any chat.
+	AllowAnyUser    bool
 	ReactionsConfig config.ReactionsConfig
 	Transcriber     stt.Transcriber
 	Synthesizer     tts.Synthesizer
@@ -61,10 +64,11 @@ func (h *Handler) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mes
 	chatID := msg.Chat.ID
 	threadID := topicThreadID(msg)
 
-	// AllowedUserIDs, when non-empty, overrides AllowedChats:
-	// only messages from listed users are accepted (from any chat).
-	if len(h.AllowedUserIDs) > 0 {
-		if !h.AllowedUserIDs[msg.From.ID] {
+	// AllowedUserIDs (or AllowAnyUser for "*"), when set, overrides AllowedChats:
+	// listed users (or any user for "*") are accepted from any chat.
+	userGateActive := h.AllowAnyUser || len(h.AllowedUserIDs) > 0
+	if userGateActive {
+		if !h.AllowAnyUser && !h.AllowedUserIDs[msg.From.ID] {
 			slog.Warn("🚨👽🚨 telegram message from unlisted user (add to allowed_user_id to enable)",
 				"user_id", msg.From.ID, "username", msg.From.Username, "chat_id", chatID)
 			return

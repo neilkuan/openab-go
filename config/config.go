@@ -44,6 +44,7 @@ type DiscordConfig struct {
 	AllowedChannels []string        `toml:"allowed_channels"`
 	// AllowedUserIDs, when non-empty, takes precedence over AllowedChannels:
 	// only messages from these Discord user IDs will be processed (regardless of channel).
+	// Use ["*"] as a wildcard to allow any user from any channel.
 	AllowedUserIDs []string        `toml:"allowed_user_id"`
 	Reactions      ReactionsConfig `toml:"reactions"`
 }
@@ -112,7 +113,9 @@ type TelegramConfig struct {
 	AllowedChats []int64 `toml:"allowed_chats"`
 	// AllowedUserIDs, when non-empty, takes precedence over AllowedChats:
 	// only messages from these Telegram user IDs will be processed (regardless of chat).
-	AllowedUserIDs []int64         `toml:"allowed_user_id"`
+	// Use ["*"] as a wildcard to allow any user from any chat.
+	// String type so "*" and numeric IDs can coexist in a single TOML array.
+	AllowedUserIDs []string        `toml:"allowed_user_id"`
 	Reactions      ReactionsConfig `toml:"reactions"`
 }
 

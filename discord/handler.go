@@ -26,6 +26,9 @@ type Handler struct {
 	Pool            *acp.SessionPool
 	AllowedChannels map[string]bool
 	AllowedUserIDs  map[string]bool
+	// AllowAnyUser is true when allowed_user_id contains "*" — anyone can talk
+	// to the bot from any channel.
+	AllowAnyUser    bool
 	ReactionsConfig config.ReactionsConfig
 	Transcriber     stt.Transcriber
 	Synthesizer     tts.Synthesizer
@@ -52,11 +55,13 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		isMentioned = strings.Contains(m.Content, fmt.Sprintf("<@%s>", botID))
 	}
 
-	// AllowedUserIDs, when non-empty, overrides the channel-based gate:
-	// only messages from listed users are accepted (from any channel/thread).
+	// AllowedUserIDs (or AllowAnyUser for "*"), when set, overrides the
+	// channel-based gate: listed users (or any user for "*") are accepted
+	// from any channel/thread.
 	var inAllowedChannel, inThread bool
-	if len(h.AllowedUserIDs) > 0 {
-		if !h.AllowedUserIDs[m.Author.ID] {
+	userGateActive := h.AllowAnyUser || len(h.AllowedUserIDs) > 0
+	if userGateActive {
+		if !h.AllowAnyUser && !h.AllowedUserIDs[m.Author.ID] {
 			// Only log when the user actually tried to address the bot,
 			// otherwise background messages in busy guilds would flood logs.
 			if isMentioned {

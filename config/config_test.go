@@ -190,7 +190,7 @@ allowed_user_id = ["user1", "user2"]
 [telegram]
 bot_token = "tg-token"
 allowed_chats = [100]
-allowed_user_id = [111, 222]
+allowed_user_id = ["111", "222"]
 
 [agent]
 command = "echo"
@@ -211,8 +211,35 @@ command = "echo"
 	if len(cfg.Telegram.AllowedUserIDs) != 2 {
 		t.Fatalf("expected 2 telegram allowed_user_id, got %d", len(cfg.Telegram.AllowedUserIDs))
 	}
-	if cfg.Telegram.AllowedUserIDs[0] != 111 || cfg.Telegram.AllowedUserIDs[1] != 222 {
+	if cfg.Telegram.AllowedUserIDs[0] != "111" || cfg.Telegram.AllowedUserIDs[1] != "222" {
 		t.Fatalf("unexpected telegram allowed_user_id: %v", cfg.Telegram.AllowedUserIDs)
+	}
+}
+
+func TestLoadConfig_AllowedUserIDsWildcard(t *testing.T) {
+	content := `
+[discord]
+bot_token = "d-token"
+allowed_user_id = ["*"]
+
+[telegram]
+bot_token = "tg-token"
+allowed_user_id = ["*"]
+
+[agent]
+command = "echo"
+`
+	path := writeTempConfig(t, content)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if len(cfg.Discord.AllowedUserIDs) != 1 || cfg.Discord.AllowedUserIDs[0] != "*" {
+		t.Fatalf("expected discord allowed_user_id=['*'], got %v", cfg.Discord.AllowedUserIDs)
+	}
+	if len(cfg.Telegram.AllowedUserIDs) != 1 || cfg.Telegram.AllowedUserIDs[0] != "*" {
+		t.Fatalf("expected telegram allowed_user_id=['*'], got %v", cfg.Telegram.AllowedUserIDs)
 	}
 }
 
