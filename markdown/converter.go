@@ -22,9 +22,10 @@ import (
 
 // codeBlockWidthThreshold is the max display column width a fenced code-block
 // table may occupy before ConvertTables falls back to bullets mode. Discord
-// and Telegram desktop chat panes show roughly 70-100 monospace columns; 80
-// is a safe choice that keeps tables on one line for most viewports.
-const codeBlockWidthThreshold = 80
+// desktop fits roughly 100-110 monospace columns at default zoom; we leave a
+// little headroom so most narrow tables still render as aligned code blocks
+// and only genuinely wide ones (4+ columns of CJK content) fall back.
+const codeBlockWidthThreshold = 100
 
 // TableMode controls how GFM tables are rewritten before being sent to a chat platform.
 type TableMode string
@@ -206,7 +207,22 @@ func renderCodeBlock(tbl *extast.Table, src []byte) string {
 	return b.String()
 }
 
-// renderBullets emits "• Header: Value" per cell, grouped by row.
+// renderBullets converts each table row into a record-style group:
+// the first cell becomes a bold header (acting as the row's identity)
+// and the remaining cells become "• Header: Value" sub-bullets.
+// Groups are separated by blank lines so the row boundary is obvious
+// even in dense, multi-record output.
+//
+// Example for a K8s 1.34 vs 1.35 comparison:
+//
+//	**In-place Pod Resource Resize**
+//	• K8s 1.34: Beta
+//	• K8s 1.35: GA
+//	• 說明: 動態調整 Pod 的 CPU/Memory 資源
+//
+//	**Image Volume Source**
+//	• K8s 1.34: Alpha
+//	• ...
 func renderBullets(tbl *extast.Table, src []byte) string {
 	rows := collectRows(tbl, src)
 	if len(rows) == 0 {
@@ -231,24 +247,24 @@ func renderBullets(tbl *extast.Table, src []byte) string {
 	var b strings.Builder
 	for i, row := range body {
 		if i > 0 {
-			// Blank line between rows so users can see at a glance which
-			// bullets belong to the same record. Without this every row
-			// runs together and a 6-row × 4-col table becomes 24
-			// indistinguishable bullets.
 			b.WriteString("\n\n")
 		}
-		for j, cell := range row {
-			if j > 0 {
-				b.WriteByte('\n')
-			}
+		if len(row) == 0 {
+			continue
+		}
+		// First cell becomes a bold header line, e.g. "**Foo**".
+		fmt.Fprintf(&b, "**%s**", row[0])
+		// Remaining cells become "• <Header>: <Value>" sub-bullets.
+		for j := 1; j < len(row); j++ {
+			b.WriteByte('\n')
 			label := ""
 			if j < len(headers) {
 				label = headers[j]
 			}
 			if label != "" {
-				b.WriteString(fmt.Sprintf("• %s: %s", label, cell))
+				fmt.Fprintf(&b, "• %s: %s", label, row[j])
 			} else {
-				b.WriteString("• " + cell)
+				b.WriteString("• " + row[j])
 			}
 		}
 	}

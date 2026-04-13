@@ -39,11 +39,19 @@ func TestConvertTablesBulletsMode(t *testing.T) {
 	if strings.Contains(out, "|") {
 		t.Fatalf("bullets mode should remove pipe characters, got:\n%s", out)
 	}
-	if !strings.Contains(out, "• Tool: Foo") {
-		t.Fatalf("expected '• Tool: Foo' in bullet output, got:\n%s", out)
+	// First cell should become a bold row header, not a bullet.
+	if !strings.Contains(out, "**Foo**") || !strings.Contains(out, "**Bar**") {
+		t.Fatalf("expected first cell as bold header, got:\n%s", out)
+	}
+	if !strings.Contains(out, "• Stars: 1.2k") {
+		t.Fatalf("expected sub-bullet '• Stars: 1.2k', got:\n%s", out)
 	}
 	if !strings.Contains(out, "• Language: Rust") {
-		t.Fatalf("expected '• Language: Rust' in bullet output, got:\n%s", out)
+		t.Fatalf("expected sub-bullet '• Language: Rust' in bullet output, got:\n%s", out)
+	}
+	// Tool column header should NOT appear as a bullet — it's the row identity.
+	if strings.Contains(out, "• Tool: Foo") {
+		t.Fatalf("first cell should be a bold header, not a bullet, got:\n%s", out)
 	}
 }
 
@@ -145,8 +153,11 @@ func TestConvertTablesWideTableFallsBackToBullets(t *testing.T) {
 	if strings.Contains(out, "```") {
 		t.Fatalf("wide table should fall back to bullets, got code block:\n%s", out)
 	}
-	if !strings.Contains(out, "• col1:") {
-		t.Fatalf("expected bullet output, got:\n%s", out)
+	if !strings.Contains(out, "**aaaaaaaaaaaaaaaaaaaaaaaaa**") {
+		t.Fatalf("expected first cell as bold header, got:\n%s", out)
+	}
+	if !strings.Contains(out, "• col2:") {
+		t.Fatalf("expected sub-bullet output, got:\n%s", out)
 	}
 }
 
