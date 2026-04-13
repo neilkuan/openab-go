@@ -52,7 +52,17 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		}
 	}
 	if !isMentioned {
-		isMentioned = strings.Contains(m.Content, fmt.Sprintf("<@%s>", botID))
+		// Discord clients may emit either <@BOTID> or the legacy nickname
+		// form <@!BOTID>. discordgo normally populates m.Mentions, but fall
+		// back to raw content scanning if it doesn't (seen in some clients).
+		isMentioned = strings.Contains(m.Content, fmt.Sprintf("<@%s>", botID)) ||
+			strings.Contains(m.Content, fmt.Sprintf("<@!%s>", botID))
+	}
+
+	// Dump mention IDs for diagnostics when mention detection fails.
+	mentionIDs := make([]string, 0, len(m.Mentions))
+	for _, u := range m.Mentions {
+		mentionIDs = append(mentionIDs, u.ID)
 	}
 
 	slog.Debug("discord message received",
@@ -60,8 +70,11 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		"author", m.Author.Username,
 		"channel_id", channelID,
 		"guild_id", m.GuildID,
+		"bot_id", botID,
 		"mentioned", isMentioned,
+		"mention_ids", mentionIDs,
 		"content_len", len(m.Content),
+		"content", m.Content,
 		"attachments", len(m.Attachments))
 
 	// AllowedUserIDs (or AllowAnyUser for "*"), when set, overrides the
