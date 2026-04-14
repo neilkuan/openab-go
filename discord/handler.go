@@ -788,7 +788,8 @@ func (h *Handler) sendVoiceReply(s *discordgo.Session, channelID, userID, text s
 	}
 	defer f.Close()
 
-	if _, err := s.ChannelFileSend(channelID, "voice_reply.mp3", f); err != nil {
+	filename := "voice_reply." + filepath.Ext(audioPath)[1:] // e.g. "voice_reply.mp3", "voice_reply.wav"
+	if _, err := s.ChannelFileSend(channelID, filename, f); err != nil {
 		slog.Error("failed to send tts voice", "error", err)
 	}
 }

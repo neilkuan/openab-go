@@ -149,3 +149,4 @@ session_ttl_hours = 24
 # provider = "groq"
 # model = "canopylabs/orpheus-v1-english"
 # voice = "troy"
+# response_format = "wav"

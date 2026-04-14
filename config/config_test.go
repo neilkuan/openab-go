@@ -705,6 +705,9 @@ provider = "groq"
 	if cfg.TTS.Voice != "troy" {
 		t.Fatalf("expected default groq voice 'troy', got %q", cfg.TTS.Voice)
 	}
+	if cfg.TTS.ResponseFormat != "wav" {
+		t.Fatalf("expected default groq response_format 'wav', got %q", cfg.TTS.ResponseFormat)
+	}
 }
 
 func TestLoadConfig_TTSProviderDefault(t *testing.T) {

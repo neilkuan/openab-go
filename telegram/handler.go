@@ -742,7 +742,7 @@ func (h *Handler) sendVoiceReply(ctx context.Context, b *bot.Bot, chatID int64, 
 		ChatID:          chatID,
 		MessageThreadID: 0,
 		Voice: &models.InputFileUpload{
-			Filename: "voice.ogg",
+			Filename: "voice." + filepath.Ext(audioPath)[1:],
 			Data:     file,
 		},
 		ReplyParameters: &models.ReplyParameters{MessageID: replyToMsgID},

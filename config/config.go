@@ -114,14 +114,15 @@ type STTConfig struct {
 // --- TTS (Text-to-Speech) ---
 
 type TTSConfig struct {
-	Enabled    bool   `toml:"enabled"`
-	Provider   string `toml:"provider"`    // "openai" (default) or "groq"
-	APIKey     string `toml:"api_key"`     // API key
-	Model      string `toml:"model"`       // Model name (default: "tts-1")
-	Voice      string `toml:"voice"`       // Voice name (overrides voice_gender if set)
-	VoiceGender string `toml:"voice_gender"` // "female" or "male" (default: "female")
-	BaseURL    string `toml:"base_url"`    // Custom API endpoint
-	TimeoutSec int    `toml:"timeout_sec"` // HTTP timeout in seconds (default: 60)
+	Enabled        bool   `toml:"enabled"`
+	Provider       string `toml:"provider"`        // "openai" (default) or "groq"
+	APIKey         string `toml:"api_key"`          // API key
+	Model          string `toml:"model"`            // Model name (default: "tts-1")
+	Voice          string `toml:"voice"`            // Voice name (overrides voice_gender if set)
+	VoiceGender    string `toml:"voice_gender"`     // "female" or "male" (default: "female")
+	ResponseFormat string `toml:"response_format"`  // Audio format: "mp3", "wav", "opus", etc.
+	BaseURL        string `toml:"base_url"`         // Custom API endpoint
+	TimeoutSec     int    `toml:"timeout_sec"`      // HTTP timeout in seconds (default: 60)
 }
 
 // --- Telegram ---
@@ -239,6 +240,9 @@ func applyTTSDefaults(tc *TTSConfig) {
 		}
 		if tc.Voice == "" {
 			tc.Voice = "troy"
+		}
+		if tc.ResponseFormat == "" {
+			tc.ResponseFormat = "wav"
 		}
 	default: // "openai"
 		if tc.Model == "" {

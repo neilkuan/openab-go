@@ -86,11 +86,12 @@ func main() {
 		switch cfg.TTS.Provider {
 		case "openai", "groq":
 			synth = tts.NewOpenAISynthesizer(tts.OpenAIConfig{
-				APIKey:     cfg.TTS.APIKey,
-				Model:      cfg.TTS.Model,
-				Voice:      cfg.TTS.Voice,
-				BaseURL:    cfg.TTS.BaseURL,
-				TimeoutSec: cfg.TTS.TimeoutSec,
+				APIKey:         cfg.TTS.APIKey,
+				Model:          cfg.TTS.Model,
+				Voice:          cfg.TTS.Voice,
+				ResponseFormat: cfg.TTS.ResponseFormat,
+				BaseURL:        cfg.TTS.BaseURL,
+				TimeoutSec:     cfg.TTS.TimeoutSec,
 			})
 			slog.Info("🔊 tts enabled", "provider", cfg.TTS.Provider, "model", cfg.TTS.Model, "voice", cfg.TTS.Voice, "voice_gender", cfg.TTS.VoiceGender)
 		default:
