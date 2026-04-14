@@ -609,6 +609,126 @@ api_key = "${OPENAI_API_KEY}"
 	}
 }
 
+func TestLoadConfig_STTGroqDefaults(t *testing.T) {
+	content := `
+[discord]
+bot_token = "t"
+
+[agent]
+command = "echo"
+
+[stt]
+api_key = "gsk-test"
+provider = "groq"
+`
+	path := writeTempConfig(t, content)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if !cfg.STT.Enabled {
+		t.Fatal("expected stt enabled when api_key is set")
+	}
+	if cfg.STT.Provider != "groq" {
+		t.Fatalf("expected provider 'groq', got %q", cfg.STT.Provider)
+	}
+	if cfg.STT.Model != "whisper-large-v3-turbo" {
+		t.Fatalf("expected default groq model 'whisper-large-v3-turbo', got %q", cfg.STT.Model)
+	}
+	if cfg.STT.BaseURL != "https://api.groq.com/openai/v1" {
+		t.Fatalf("expected default groq base_url, got %q", cfg.STT.BaseURL)
+	}
+	if cfg.STT.Language != "zh" {
+		t.Fatalf("expected default language 'zh', got %q", cfg.STT.Language)
+	}
+}
+
+func TestLoadConfig_STTGroqCustomModel(t *testing.T) {
+	content := `
+[discord]
+bot_token = "t"
+
+[agent]
+command = "echo"
+
+[stt]
+api_key = "gsk-test"
+provider = "groq"
+model = "whisper-large-v3"
+base_url = "https://custom-groq.example.com/v1"
+`
+	path := writeTempConfig(t, content)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if cfg.STT.Model != "whisper-large-v3" {
+		t.Fatalf("expected custom model, got %q", cfg.STT.Model)
+	}
+	if cfg.STT.BaseURL != "https://custom-groq.example.com/v1" {
+		t.Fatalf("expected custom base_url, got %q", cfg.STT.BaseURL)
+	}
+}
+
+func TestLoadConfig_TTSGroqDefaults(t *testing.T) {
+	content := `
+[discord]
+bot_token = "t"
+
+[agent]
+command = "echo"
+
+[tts]
+api_key = "gsk-test"
+provider = "groq"
+`
+	path := writeTempConfig(t, content)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if !cfg.TTS.Enabled {
+		t.Fatal("expected tts enabled when api_key is set")
+	}
+	if cfg.TTS.Provider != "groq" {
+		t.Fatalf("expected provider 'groq', got %q", cfg.TTS.Provider)
+	}
+	if cfg.TTS.Model != "playai-tts" {
+		t.Fatalf("expected default groq model 'playai-tts', got %q", cfg.TTS.Model)
+	}
+	if cfg.TTS.BaseURL != "https://api.groq.com/openai/v1" {
+		t.Fatalf("expected default groq base_url, got %q", cfg.TTS.BaseURL)
+	}
+	if cfg.TTS.Voice != "fritz-playai" {
+		t.Fatalf("expected default groq voice 'fritz-playai', got %q", cfg.TTS.Voice)
+	}
+}
+
+func TestLoadConfig_TTSProviderDefault(t *testing.T) {
+	content := `
+[discord]
+bot_token = "t"
+
+[agent]
+command = "echo"
+
+[tts]
+api_key = "sk-test"
+`
+	path := writeTempConfig(t, content)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if cfg.TTS.Provider != "openai" {
+		t.Fatalf("expected default provider 'openai', got %q", cfg.TTS.Provider)
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

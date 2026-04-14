@@ -199,4 +199,66 @@ func TestNewOpenAISynthesizer_Defaults(t *testing.T) {
 	}
 }
 
+func TestOpenAISynthesizer_Synthesize_ResponseFormat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+
+		if req["response_format"] != "wav" {
+			t.Errorf("expected response_format 'wav', got %v", req["response_format"])
+		}
+
+		w.Write([]byte("fake-wav-audio"))
+	}))
+	defer server.Close()
+
+	synth := NewOpenAISynthesizer(OpenAIConfig{
+		APIKey:         "test-key",
+		BaseURL:        server.URL,
+		ResponseFormat: "wav",
+	})
+
+	audioPath, err := synth.Synthesize("test text")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer os.Remove(audioPath)
+
+	if !strings.HasSuffix(audioPath, ".wav") {
+		t.Errorf("expected .wav extension, got %q", audioPath)
+	}
+}
+
+func TestOpenAISynthesizer_Synthesize_DefaultFormat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+
+		// response_format should be omitted (empty string → omitempty)
+		if _, ok := req["response_format"]; ok {
+			t.Errorf("expected response_format to be omitted, got %v", req["response_format"])
+		}
+
+		w.Write([]byte("fake-mp3-audio"))
+	}))
+	defer server.Close()
+
+	synth := NewOpenAISynthesizer(OpenAIConfig{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+	})
+
+	audioPath, err := synth.Synthesize("test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer os.Remove(audioPath)
+
+	if !strings.HasSuffix(audioPath, ".mp3") {
+		t.Errorf("expected .mp3 extension, got %q", audioPath)
+	}
+}
+
 var _ Synthesizer = (*OpenAISynthesizer)(nil)

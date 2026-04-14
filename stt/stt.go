@@ -73,6 +73,10 @@ func (t *OpenAITranscriber) Transcribe(audioPath string) (string, error) {
 	if err := writer.WriteField("model", t.config.Model); err != nil {
 		return "", fmt.Errorf("write model field: %w", err)
 	}
+	// Ensure JSON response format for reliable parsing across providers (OpenAI, Groq, etc.)
+	if err := writer.WriteField("response_format", "json"); err != nil {
+		return "", fmt.Errorf("write response_format field: %w", err)
+	}
 	if t.config.Language != "" {
 		if err := writer.WriteField("language", t.config.Language); err != nil {
 			return "", fmt.Errorf("write language field: %w", err)

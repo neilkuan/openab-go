@@ -15,12 +15,13 @@ import (
 
 // OpenAIConfig holds configuration for the OpenAI TTS API.
 type OpenAIConfig struct {
-	APIKey       string // OpenAI API key
-	Model        string // "tts-1", "tts-1-hd", or "gpt-4o-mini-tts"
-	Voice        string // Built-in voice name (alloy, ash, ballad, coral, echo, etc.)
-	Instructions string // Voice style instructions (gpt-4o-mini-tts only)
-	BaseURL      string // Custom API endpoint (default: "https://api.openai.com/v1")
-	TimeoutSec   int
+	APIKey         string // API key
+	Model          string // "tts-1", "tts-1-hd", "gpt-4o-mini-tts", or Groq models
+	Voice          string // Built-in voice name (alloy, ash, ballad, coral, echo, etc.)
+	ResponseFormat string // Audio output format: "mp3" (default), "wav", "opus", "flac", "aac"
+	Instructions   string // Voice style instructions (gpt-4o-mini-tts only)
+	BaseURL        string // Custom API endpoint (default: "https://api.openai.com/v1")
+	TimeoutSec     int
 }
 
 // OpenAISynthesizer uses the OpenAI TTS API.
@@ -52,10 +53,11 @@ func NewOpenAISynthesizer(cfg OpenAIConfig) *OpenAISynthesizer {
 // speechRequest is the JSON body for POST /audio/speech.
 // Voice can be a string (built-in) or {"id": "voice_xxx"} (custom).
 type speechRequest struct {
-	Model        string      `json:"model"`
-	Input        string      `json:"input"`
-	Voice        interface{} `json:"voice"`
-	Instructions string      `json:"instructions,omitempty"`
+	Model          string      `json:"model"`
+	Input          string      `json:"input"`
+	Voice          interface{} `json:"voice"`
+	ResponseFormat string      `json:"response_format,omitempty"`
+	Instructions   string      `json:"instructions,omitempty"`
 }
 
 type customVoiceRef struct {
@@ -90,10 +92,11 @@ func (s *OpenAISynthesizer) synthesize(text string, voice interface{}) (string, 
 	}
 
 	req := speechRequest{
-		Model:        s.config.Model,
-		Input:        text,
-		Voice:        voiceField,
-		Instructions: s.config.Instructions,
+		Model:          s.config.Model,
+		Input:          text,
+		Voice:          voiceField,
+		ResponseFormat: s.config.ResponseFormat,
+		Instructions:   s.config.Instructions,
 	}
 	reqBody, err := json.Marshal(req)
 	if err != nil {
@@ -108,7 +111,11 @@ func (s *OpenAISynthesizer) synthesize(text string, voice interface{}) (string, 
 	httpReq.Header.Set("Authorization", "Bearer "+s.config.APIKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	return s.saveResponse(httpReq, "mp3")
+	ext := "mp3"
+	if s.config.ResponseFormat != "" {
+		ext = s.config.ResponseFormat
+	}
+	return s.saveResponse(httpReq, ext)
 }
 
 // CreateVoice uploads an audio sample to create a custom voice via POST /audio/voices.

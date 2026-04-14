@@ -33,6 +33,9 @@ func TestOpenAITranscriber_Transcribe_Success(t *testing.T) {
 		if r.FormValue("model") != "whisper-1" {
 			t.Errorf("expected model 'whisper-1', got %q", r.FormValue("model"))
 		}
+		if r.FormValue("response_format") != "json" {
+			t.Errorf("expected response_format 'json', got %q", r.FormValue("response_format"))
+		}
 		if r.FormValue("language") != "zh" {
 			t.Errorf("expected language 'zh', got %q", r.FormValue("language"))
 		}

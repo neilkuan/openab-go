@@ -115,7 +115,8 @@ type STTConfig struct {
 
 type TTSConfig struct {
 	Enabled    bool   `toml:"enabled"`
-	APIKey     string `toml:"api_key"`     // OpenAI API key
+	Provider   string `toml:"provider"`    // "openai" (default) or "groq"
+	APIKey     string `toml:"api_key"`     // API key
 	Model      string `toml:"model"`       // Model name (default: "tts-1")
 	Voice      string `toml:"voice"`       // Voice name (overrides voice_gender if set)
 	VoiceGender string `toml:"voice_gender"` // "female" or "male" (default: "female")
@@ -195,9 +196,22 @@ func applySTTDefaults(tc *STTConfig) {
 	if tc.Provider == "" {
 		tc.Provider = "openai"
 	}
-	if tc.Model == "" {
-		tc.Model = "whisper-1"
+
+	// Provider-specific defaults
+	switch tc.Provider {
+	case "groq":
+		if tc.BaseURL == "" {
+			tc.BaseURL = "https://api.groq.com/openai/v1"
+		}
+		if tc.Model == "" {
+			tc.Model = "whisper-large-v3-turbo"
+		}
+	default: // "openai"
+		if tc.Model == "" {
+			tc.Model = "whisper-1"
+		}
 	}
+
 	if tc.Language == "" {
 		tc.Language = "zh"
 	}
@@ -210,20 +224,39 @@ func applyTTSDefaults(tc *TTSConfig) {
 	if tc.APIKey != "" && !tc.Enabled {
 		tc.Enabled = true
 	}
-	if tc.Model == "" {
-		tc.Model = "tts-1"
+	if tc.Provider == "" {
+		tc.Provider = "openai"
 	}
-	if tc.VoiceGender == "" {
-		tc.VoiceGender = "female"
-	}
-	if tc.Voice == "" {
-		switch tc.VoiceGender {
-		case "male":
-			tc.Voice = "ash"
-		default: // "female" or anything else
-			tc.Voice = "nova"
+
+	// Provider-specific defaults
+	switch tc.Provider {
+	case "groq":
+		if tc.BaseURL == "" {
+			tc.BaseURL = "https://api.groq.com/openai/v1"
+		}
+		if tc.Model == "" {
+			tc.Model = "playai-tts"
+		}
+		if tc.Voice == "" {
+			tc.Voice = "fritz-playai"
+		}
+	default: // "openai"
+		if tc.Model == "" {
+			tc.Model = "tts-1"
+		}
+		if tc.VoiceGender == "" {
+			tc.VoiceGender = "female"
+		}
+		if tc.Voice == "" {
+			switch tc.VoiceGender {
+			case "male":
+				tc.Voice = "ash"
+			default: // "female" or anything else
+				tc.Voice = "nova"
+			}
 		}
 	}
+
 	if tc.TimeoutSec == 0 {
 		tc.TimeoutSec = 60
 	}

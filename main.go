@@ -65,7 +65,7 @@ func main() {
 	var t stt.Transcriber
 	if cfg.STT.Enabled {
 		switch cfg.STT.Provider {
-		case "openai":
+		case "openai", "groq":
 			t = stt.NewOpenAITranscriber(stt.OpenAIConfig{
 				APIKey:   cfg.STT.APIKey,
 				Model:    cfg.STT.Model,
@@ -73,7 +73,7 @@ func main() {
 				Prompt:   cfg.STT.Prompt,
 				BaseURL:  cfg.STT.BaseURL,
 			})
-			slog.Info("🎙️ stt enabled", "provider", "openai", "model", cfg.STT.Model, "language", cfg.STT.Language)
+			slog.Info("🎙️ stt enabled", "provider", cfg.STT.Provider, "model", cfg.STT.Model, "language", cfg.STT.Language)
 		default:
 			slog.Warn("unknown stt provider, voice transcription disabled", "provider", cfg.STT.Provider)
 		}
@@ -83,18 +83,25 @@ func main() {
 	var synth tts.Synthesizer
 	var voiceStore *tts.VoiceStore
 	if cfg.TTS.Enabled {
-		synth = tts.NewOpenAISynthesizer(tts.OpenAIConfig{
-			APIKey:     cfg.TTS.APIKey,
-			Model:      cfg.TTS.Model,
-			Voice:      cfg.TTS.Voice,
-			BaseURL:    cfg.TTS.BaseURL,
-			TimeoutSec: cfg.TTS.TimeoutSec,
-		})
-		slog.Info("🔊 tts enabled", "model", cfg.TTS.Model, "voice", cfg.TTS.Voice, "voice_gender", cfg.TTS.VoiceGender)
-		var err error
-		voiceStore, err = tts.NewVoiceStore(cfg.Agent.WorkingDir)
-		if err != nil {
-			slog.Warn("failed to create voice store, per-user voices disabled", "error", err)
+		switch cfg.TTS.Provider {
+		case "openai", "groq":
+			synth = tts.NewOpenAISynthesizer(tts.OpenAIConfig{
+				APIKey:     cfg.TTS.APIKey,
+				Model:      cfg.TTS.Model,
+				Voice:      cfg.TTS.Voice,
+				BaseURL:    cfg.TTS.BaseURL,
+				TimeoutSec: cfg.TTS.TimeoutSec,
+			})
+			slog.Info("🔊 tts enabled", "provider", cfg.TTS.Provider, "model", cfg.TTS.Model, "voice", cfg.TTS.Voice, "voice_gender", cfg.TTS.VoiceGender)
+		default:
+			slog.Warn("unknown tts provider, voice synthesis disabled", "provider", cfg.TTS.Provider)
+		}
+		if synth != nil {
+			var err error
+			voiceStore, err = tts.NewVoiceStore(cfg.Agent.WorkingDir)
+			if err != nil {
+				slog.Warn("failed to create voice store, per-user voices disabled", "error", err)
+			}
 		}
 	}
 

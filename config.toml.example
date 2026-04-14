@@ -107,7 +107,11 @@ session_ttl_hours = 24
 # listen = ":8080"
 
 # STT - Speech-to-Text (optional)
-# Set api_key to enable voice message transcription via OpenAI Whisper
+# Set api_key to enable voice message transcription.
+# Supported providers: "openai" (default), "groq"
+# Any OpenAI-compatible endpoint works — just change base_url.
+#
+# --- OpenAI ---
 # [stt]
 # api_key = "${OPENAI_API_KEY}"
 # provider = "openai"
@@ -115,12 +119,31 @@ session_ttl_hours = 24
 # language = "zh"
 # prompt = "以下是繁體中文語音的逐字稿："
 # base_url = "https://api.openai.com/v1"
+#
+# --- Groq Cloud (free tier, recommended) ---
+# Sign up at https://console.groq.com — free tier with rate limits.
+# [stt]
+# api_key = "${GROQ_API_KEY}"
+# provider = "groq"
+# model = "whisper-large-v3-turbo"     # default for groq
+# language = "zh"
 
 # TTS - Text-to-Speech (optional)
 # Bot replies with voice when user sends a voice message.
-# Uses OpenAI TTS API (same API key as STT).
+# Supported providers: "openai" (default), "groq"
+#
+# --- OpenAI ---
 # [tts]
 # api_key = "${OPENAI_API_KEY}"
+# provider = "openai"
 # model = "tts-1"              # or "tts-1-hd" for higher quality
 # voice = "alloy"              # alloy, echo, fable, onyx, nova, shimmer
 # base_url = "https://api.openai.com/v1"
+#
+# --- Groq Cloud ---
+# Note: Groq TTS currently supports English and Arabic only.
+# [tts]
+# api_key = "${GROQ_API_KEY}"
+# provider = "groq"
+# model = "playai-tts"                 # or "playai-tts-arabic"
+# voice = "fritz-playai"               # fritz-playai, hannah-playai, etc.
