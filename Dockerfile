@@ -10,7 +10,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.commit=${COMMIT}" -o quill .
 # --- Runtime stage ---
 FROM debian:bookworm-slim
 
-ARG GH_CLI_VERSION=2.74.1
+ARG GH_CLI_VERSION=2.89.0
 # Change KIRO_CLI_CACHE_BUST to force re-download of kiro-cli (no versioned URL available)
 ARG KIRO_CLI_CACHE_BUST=2026-04-14
 
