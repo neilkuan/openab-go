@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/neilkuan/openab-go/config"
+	"github.com/neilkuan/quill/config"
 )
 
 // Tool classification tokens (shared with Discord)

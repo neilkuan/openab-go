@@ -1,4 +1,4 @@
-module github.com/neilkuan/openab-go
+module github.com/neilkuan/quill
 
 go 1.26.2
 

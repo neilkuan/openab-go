@@ -5,7 +5,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ARG COMMIT=unknown
-RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.commit=${COMMIT}" -o openab-go .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.commit=${COMMIT}" -o quill .
 
 # --- Runtime stage ---
 FROM debian:bookworm-slim
@@ -39,10 +39,10 @@ RUN useradd -m -s /bin/bash -u 1000 agent \
 ENV HOME=/home/agent
 WORKDIR /home/agent
 
-COPY --from=builder --chown=agent:agent /build/openab-go /usr/local/bin/openab-go
+COPY --from=builder --chown=agent:agent /build/quill /usr/local/bin/quill
 
 USER agent
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD pgrep -x openab-go || exit 1
-ENTRYPOINT ["openab-go"]
-CMD ["/etc/openab-go/config.toml"]
+  CMD pgrep -x quill || exit 1
+ENTRYPOINT ["quill"]
+CMD ["/etc/quill/config.toml"]

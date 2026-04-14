@@ -8,27 +8,27 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/neilkuan/openab-go/acp"
-	"github.com/neilkuan/openab-go/api"
-	appconfig "github.com/neilkuan/openab-go/config"
-	"github.com/neilkuan/openab-go/discord"
-	"github.com/neilkuan/openab-go/platform"
-	"github.com/neilkuan/openab-go/telegram"
-	"github.com/neilkuan/openab-go/stt"
-	"github.com/neilkuan/openab-go/tts"
+	"github.com/neilkuan/quill/acp"
+	"github.com/neilkuan/quill/api"
+	appconfig "github.com/neilkuan/quill/config"
+	"github.com/neilkuan/quill/discord"
+	"github.com/neilkuan/quill/platform"
+	"github.com/neilkuan/quill/telegram"
+	"github.com/neilkuan/quill/stt"
+	"github.com/neilkuan/quill/tts"
 )
 
 var commit = "unknown"
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		fmt.Printf("openab-go (%s)\n", commit)
+		fmt.Printf("quill (%s)\n", commit)
 		os.Exit(0)
 	}
 
 	// Setup structured logging
 	logLevel := slog.LevelInfo
-	if os.Getenv("OPENAB_GO_LOG") == "debug" {
+	if os.Getenv("QUILL_LOG") == "debug" {
 		logLevel = slog.LevelDebug
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
@@ -165,7 +165,7 @@ func main() {
 		}
 	}()
 
-	slog.Info("openab-go started", "platforms", len(platforms))
+	slog.Info("quill started", "platforms", len(platforms))
 
 	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)
@@ -187,5 +187,5 @@ func main() {
 		}
 	}
 	pool.Shutdown()
-	slog.Info("openab-go shut down")
+	slog.Info("quill shut down")
 }

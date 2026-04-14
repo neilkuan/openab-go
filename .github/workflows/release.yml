@@ -21,7 +21,7 @@ jobs:
   release-pr:
     runs-on: ubuntu-latest
     steps:
-      # Mint a token from the openab-go-app GitHub App. Using an App token
+      # Mint a token from the quill-app GitHub App. Using an App token
       # (instead of the default GITHUB_TOKEN) means the commits this workflow
       # pushes and the PRs it opens WILL trigger downstream workflows (CI on
       # the release branch, image builds, etc.) — GITHUB_TOKEN-authored events
@@ -71,8 +71,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git config user.name "openab-go-app[bot]"
-          git config user.email "openab-go-app[bot]@users.noreply.github.com"
+          git config user.name "quill-app[bot]"
+          git config user.email "quill-app[bot]@users.noreply.github.com"
 
           ARGS=""
           if [ -n "${{ inputs.version }}" ]; then

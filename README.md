@@ -1,4 +1,4 @@
-# openab-go
+# Quill
 
 [繁體中文](README-zh-tw.md) | English
 
@@ -50,8 +50,8 @@ Supports Kiro CLI, Claude Code, Codex, GitHub Copilot CLI, and any ACP-compatibl
 
 ```bash
 # Clone
-git clone https://github.com/neilkuan/openab-go.git
-cd openab-go
+git clone https://github.com/neilkuan/quill.git
+cd quill
 
 # Copy and edit config
 cp config.toml.example config.toml
@@ -101,12 +101,12 @@ Matching is against the numeric user ID, not the username — usernames can chan
 ###### How to find a user's Discord ID
 
 - **From the app:** Enable Developer Mode (`User Settings → Advanced → Developer Mode`), then right-click a user → **Copy User ID**.
-- **From logs:** Run with `OPENAB_GO_LOG=debug`, send the bot a message, and look for the `author_id=...` field in the `discord message received` log line.
+- **From logs:** Run with `QUILL_LOG=debug`, send the bot a message, and look for the `author_id=...` field in the `discord message received` log line.
 
 ###### How to find a user's Telegram ID
 
 - **From Telegram:** message [@userinfobot](https://t.me/userinfobot), it replies with your numeric ID.
-- **From logs:** run with `OPENAB_GO_LOG=debug`, send the bot a message, and look for `user_id=...` in the `telegram update` log line.
+- **From logs:** run with `QUILL_LOG=debug`, send the bot a message, and look for `user_id=...` in the `telegram update` log line.
 
 Telegram IDs go in quotes in TOML (`["123456789"]`, not `[123456789]`) so `"*"` can coexist with numeric IDs in the same array.
 
@@ -226,14 +226,14 @@ Four image variants are published for each release:
 
 | Image | Agent |
 |---|---|
-| `ghcr.io/neilkuan/openab-go` | Kiro CLI |
-| `ghcr.io/neilkuan/openab-go-claude` | Claude Code |
-| `ghcr.io/neilkuan/openab-go-codex` | Codex |
-| `ghcr.io/neilkuan/openab-go-copilot` | GitHub Copilot CLI |
+| `ghcr.io/neilkuan/quill` | Kiro CLI |
+| `ghcr.io/neilkuan/quill-claude` | Claude Code |
+| `ghcr.io/neilkuan/quill-codex` | Codex |
+| `ghcr.io/neilkuan/quill-copilot` | GitHub Copilot CLI |
 
 ```bash
-docker run -v $(pwd)/config.toml:/etc/openab-go/config.toml \
-  ghcr.io/neilkuan/openab-go:latest
+docker run -v $(pwd)/config.toml:/etc/quill/config.toml \
+  ghcr.io/neilkuan/quill:latest
 ```
 
 ---
@@ -249,22 +249,22 @@ docker run -v $(pwd)/config.toml:/etc/openab-go/config.toml \
 ###### Build
 
 ```bash
-go build -o openab-go .
+go build -o quill .
 
 # with version info
-go build -ldflags "-X main.version=$(cat VERSION)" -o openab-go .
+go build -ldflags "-X main.version=$(cat VERSION)" -o quill .
 ```
 
 ###### Run with debug logging
 
 ```bash
-OPENAB_GO_LOG=debug ./openab-go config.toml
+QUILL_LOG=debug ./quill config.toml
 ```
 
 ###### Project Structure
 
 ```
-openab-go/
+quill/
 ├── main.go              # Entry point: config, platform registration, graceful shutdown
 ├── platform/
 │   └── platform.go      # Platform interface, shared message splitting

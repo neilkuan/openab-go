@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/neilkuan/openab-go/config"
+	"github.com/neilkuan/quill/config"
 )
 
 var (

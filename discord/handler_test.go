@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/neilkuan/openab-go/platform"
+	"github.com/neilkuan/quill/platform"
 )
 
 // --- isImageMime ---
@@ -163,13 +163,13 @@ func TestShortenThreadName(t *testing.T) {
 		},
 		{
 			"github URL shortened",
-			"check https://github.com/neilkuan/openab-go/issues/42 please",
-			"check neilkuan/openab-go#42 please",
+			"check https://github.com/neilkuan/quill/issues/42 please",
+			"check neilkuan/quill#42 please",
 		},
 		{
 			"github PR URL shortened",
-			"review https://github.com/neilkuan/openab-go/pull/10",
-			"review neilkuan/openab-go#10",
+			"review https://github.com/neilkuan/quill/pull/10",
+			"review neilkuan/quill#10",
 		},
 	}
 
@@ -420,12 +420,12 @@ func TestGithubURLRegex(t *testing.T) {
 		expected string
 	}{
 		{
-			"https://github.com/neilkuan/openab-go/issues/42",
-			"neilkuan/openab-go#42",
+			"https://github.com/neilkuan/quill/issues/42",
+			"neilkuan/quill#42",
 		},
 		{
-			"https://github.com/neilkuan/openab-go/pull/10",
-			"neilkuan/openab-go#10",
+			"https://github.com/neilkuan/quill/pull/10",
+			"neilkuan/quill#10",
 		},
 		{
 			"http://github.com/org/repo/issues/1",

@@ -39,8 +39,8 @@ jobs:
             exit 0
           fi
 
-          git config user.name "openab-go-app[bot]"
-          git config user.email "openab-go-app[bot]@users.noreply.github.com"
+          git config user.name "quill-app[bot]"
+          git config user.email "quill-app[bot]@users.noreply.github.com"
 
           git tag "$VERSION"
           git push origin "$VERSION"

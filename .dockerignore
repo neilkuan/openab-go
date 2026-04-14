@@ -19,7 +19,7 @@ Dockerfile.*
 .dockerignore
 
 # Built binaries
-openab-go
+quill
 *.exe
 
 # Config secrets & local overrides

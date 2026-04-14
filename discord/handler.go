@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/neilkuan/openab-go/acp"
-	"github.com/neilkuan/openab-go/command"
-	"github.com/neilkuan/openab-go/config"
-	"github.com/neilkuan/openab-go/markdown"
-	"github.com/neilkuan/openab-go/platform"
-	"github.com/neilkuan/openab-go/stt"
-	"github.com/neilkuan/openab-go/tts"
+	"github.com/neilkuan/quill/acp"
+	"github.com/neilkuan/quill/command"
+	"github.com/neilkuan/quill/config"
+	"github.com/neilkuan/quill/markdown"
+	"github.com/neilkuan/quill/platform"
+	"github.com/neilkuan/quill/stt"
+	"github.com/neilkuan/quill/tts"
 )
 
 type Handler struct {
@@ -167,7 +167,7 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 	}
 
 	senderCtx := map[string]interface{}{
-		"schema":       "openab.sender.v1",
+		"schema":       "quill.sender.v1",
 		"sender_id":    m.Author.ID,
 		"sender_name":  m.Author.Username,
 		"display_name": displayName,
