@@ -1,0 +1,115 @@
+name: Check Agent Updates
+
+on:
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check for updates
+        id: check
+        run: |
+          UPDATES=""
+          SUMMARY=""
+
+          check_npm() {
+            local pkg="$1" file="$2"
+            local current latest
+            current=$(grep -oP "${pkg}@\K[0-9][0-9.]*" "$file" || true)
+            latest=$(npm view "$pkg" version 2>/dev/null || true)
+            if [ -z "$current" ] || [ -z "$latest" ]; then
+              echo "  ${pkg}: skipped (could not resolve version)"
+              return
+            fi
+            if [ "$current" != "$latest" ]; then
+              echo "  ${pkg}: ${current} → ${latest}"
+              sed -i "s|${pkg}@${current}|${pkg}@${latest}|g" "$file"
+              UPDATES="true"
+              SUMMARY="${SUMMARY}- \`${pkg}\`: ${current} → ${latest}\n"
+            else
+              echo "  ${pkg}: ${current} (up to date)"
+            fi
+          }
+
+          check_gh_cli() {
+            local current latest
+            current=$(grep -oP 'GH_CLI_VERSION=\K[0-9.]+' Dockerfile || true)
+            latest=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+            if [ -z "$current" ] || [ -z "$latest" ]; then
+              echo "  gh CLI: skipped (could not resolve version)"
+              return
+            fi
+            if [ "$current" != "$latest" ]; then
+              echo "  gh CLI: ${current} → ${latest}"
+              for f in Dockerfile Dockerfile.codex Dockerfile.claude Dockerfile.copilot; do
+                sed -i "s|GH_CLI_VERSION=${current}|GH_CLI_VERSION=${latest}|g" "$f"
+              done
+              UPDATES="true"
+              SUMMARY="${SUMMARY}- \`gh CLI\`: ${current} → ${latest}\n"
+            else
+              echo "  gh CLI: ${current} (up to date)"
+            fi
+          }
+
+          echo "Checking npm packages..."
+          check_npm "@zed-industries/codex-acp" "Dockerfile.codex"
+          check_npm "@openai/codex" "Dockerfile.codex"
+          check_npm "@agentclientprotocol/claude-agent-acp" "Dockerfile.claude"
+          check_npm "@anthropic-ai/claude-code" "Dockerfile.claude"
+          check_npm "@github/copilot" "Dockerfile.copilot"
+
+          echo "Checking gh CLI..."
+          check_gh_cli
+
+          echo "has_updates=${UPDATES:-false}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$SUMMARY" ]; then
+            printf '%b' "$SUMMARY" > /tmp/update-summary.txt
+          fi
+
+      - name: Create Pull Request
+        if: steps.check.outputs.has_updates == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="chore/agent-updates-$(date +%Y%m%d-%H%M)"
+          SUMMARY=$(cat /tmp/update-summary.txt)
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add Dockerfile Dockerfile.codex Dockerfile.claude Dockerfile.copilot
+          git commit -m "$(cat <<'COMMIT'
+          chore(docker): bump agent binary versions
+
+          Automated update detected by check-agent-updates workflow.
+          COMMIT
+          )"
+          git push -u origin "$BRANCH"
+
+          gh pr create \
+            --title "chore(docker): bump agent binary versions" \
+            --body "$(cat <<EOF
+          ##### Summary
+          Automated version bump detected by \`check-agent-updates\` workflow.
+
+          ${SUMMARY}
+
+          ##### Test Plan
+          - [ ] Verify CI build passes with updated versions
+          - [ ] Confirm Docker images contain expected agent versions
+          EOF
+          )"
