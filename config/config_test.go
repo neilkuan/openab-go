@@ -244,11 +244,11 @@ command = "echo"
 }
 
 func TestLoadConfig_EnvVarExpansion(t *testing.T) {
-	t.Setenv("OPENAB_TEST_TOKEN", "secret-from-env")
+	t.Setenv("QUILL_TEST_TOKEN", "secret-from-env")
 
 	content := `
 [discord]
-bot_token = "${OPENAB_TEST_TOKEN}"
+bot_token = "${QUILL_TEST_TOKEN}"
 
 [agent]
 command = "echo"

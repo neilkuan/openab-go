@@ -1,4 +1,4 @@
-# openab-go
+# Quill
 
 繁體中文 | [English](README.md)
 
@@ -50,8 +50,8 @@
 
 ```bash
 # 複製專案
-git clone https://github.com/neilkuan/openab-go.git
-cd openab-go
+git clone https://github.com/neilkuan/quill.git
+cd quill
 
 # 複製並編輯設定
 cp config.toml.example config.toml
@@ -101,12 +101,12 @@ remove_after_reply = false
 ###### Discord 怎麼取得 user ID
 
 - **從 App：** 開啟開發者模式（`使用者設定 → 進階 → 開發者模式`），然後對使用者頭像右鍵 → **複製使用者 ID**。
-- **從 log：** 用 `OPENAB_GO_LOG=debug` 啟動 bot，傳一則訊息給它，看 `discord message received` 這行 log 的 `author_id=...`。
+- **從 log：** 用 `QUILL_LOG=debug` 啟動 bot，傳一則訊息給它，看 `discord message received` 這行 log 的 `author_id=...`。
 
 ###### Telegram 怎麼取得 user ID
 
 - **從 Telegram：** 跟 [@userinfobot](https://t.me/userinfobot) 講話，它會回你的數字 ID。
-- **從 log：** 用 `OPENAB_GO_LOG=debug` 啟動 bot，傳一則訊息，看 `telegram update` 這行 log 的 `user_id=...`。
+- **從 log：** 用 `QUILL_LOG=debug` 啟動 bot，傳一則訊息，看 `telegram update` 這行 log 的 `user_id=...`。
 
 Telegram 的 ID 在 TOML 中要加引號（`["123456789"]`，不是 `[123456789]`），這樣 `"*"` 才能和數字 ID 並存於同一陣列中。
 
@@ -226,14 +226,14 @@ listen = ":8080"
 
 | Image | Agent |
 |---|---|
-| `ghcr.io/neilkuan/openab-go` | Kiro CLI |
-| `ghcr.io/neilkuan/openab-go-claude` | Claude Code |
-| `ghcr.io/neilkuan/openab-go-codex` | Codex |
-| `ghcr.io/neilkuan/openab-go-copilot` | GitHub Copilot CLI |
+| `ghcr.io/neilkuan/quill` | Kiro CLI |
+| `ghcr.io/neilkuan/quill-claude` | Claude Code |
+| `ghcr.io/neilkuan/quill-codex` | Codex |
+| `ghcr.io/neilkuan/quill-copilot` | GitHub Copilot CLI |
 
 ```bash
-docker run -v $(pwd)/config.toml:/etc/openab-go/config.toml \
-  ghcr.io/neilkuan/openab-go:latest
+docker run -v $(pwd)/config.toml:/etc/quill/config.toml \
+  ghcr.io/neilkuan/quill:latest
 ```
 
 ---
@@ -249,22 +249,22 @@ docker run -v $(pwd)/config.toml:/etc/openab-go/config.toml \
 ###### 編譯
 
 ```bash
-go build -o openab-go .
+go build -o quill .
 
 # 帶版本資訊
-go build -ldflags "-X main.version=$(cat VERSION)" -o openab-go .
+go build -ldflags "-X main.version=$(cat VERSION)" -o quill .
 ```
 
 ###### 以 debug logging 執行
 
 ```bash
-OPENAB_GO_LOG=debug ./openab-go config.toml
+QUILL_LOG=debug ./quill config.toml
 ```
 
 ###### 專案結構
 
 ```
-openab-go/
+quill/
 ├── main.go              # 進入點：設定、平台註冊、graceful shutdown
 ├── platform/
 │   └── platform.go      # Platform 介面、共用訊息分割

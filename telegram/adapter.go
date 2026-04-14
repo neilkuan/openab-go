@@ -8,11 +8,11 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/neilkuan/openab-go/acp"
-	"github.com/neilkuan/openab-go/config"
-	"github.com/neilkuan/openab-go/markdown"
-	"github.com/neilkuan/openab-go/stt"
-	"github.com/neilkuan/openab-go/tts"
+	"github.com/neilkuan/quill/acp"
+	"github.com/neilkuan/quill/config"
+	"github.com/neilkuan/quill/markdown"
+	"github.com/neilkuan/quill/stt"
+	"github.com/neilkuan/quill/tts"
 )
 
 // Adapter implements platform.Platform for Telegram.

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/go-telegram/bot/models"
-	"github.com/neilkuan/openab-go/platform"
+	"github.com/neilkuan/quill/platform"
 )
 
 func TestBuildSessionKey(t *testing.T) {

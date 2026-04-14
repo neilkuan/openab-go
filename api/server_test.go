@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/neilkuan/openab-go/acp"
+	"github.com/neilkuan/quill/acp"
 )
 
 func newTestPool() *acp.SessionPool {

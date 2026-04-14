@@ -82,10 +82,10 @@ Version bump is auto-detected from conventional commits:
 Each build produces four multi-arch image variants:
 
 ```
-ghcr.io/neilkuan/openab-go:<tag>          # kiro-cli
-ghcr.io/neilkuan/openab-go-codex:<tag>    # codex
-ghcr.io/neilkuan/openab-go-claude:<tag>   # claude
-ghcr.io/neilkuan/openab-go-copilot:<tag>  # GitHub Copilot CLI
+ghcr.io/neilkuan/quill:<tag>          # kiro-cli
+ghcr.io/neilkuan/quill-codex:<tag>    # codex
+ghcr.io/neilkuan/quill-claude:<tag>   # claude
+ghcr.io/neilkuan/quill-copilot:<tag>  # GitHub Copilot CLI
 ```
 
 Tag patterns:
@@ -103,7 +103,7 @@ Tag patterns:
 
 ## Adding a new agent variant (e.g. copilot, qwen, …)
 
-For every new agent CLI we support, a new image `ghcr.io/neilkuan/openab-go-<name>` has to be published. The flow below is mandatory — skipping the bootstrap step will make the first RC build fail with `denied: permission_denied: write_package`, which then cancels the whole matrix because `build.yml` uses registry cache (`cache-to: type=registry,ref=…:cache-<runner>`) that tries to write before the push is even attempted.
+For every new agent CLI we support, a new image `ghcr.io/neilkuan/quill-<name>` has to be published. The flow below is mandatory — skipping the bootstrap step will make the first RC build fail with `denied: permission_denied: write_package`, which then cancels the whole matrix because `build.yml` uses registry cache (`cache-to: type=registry,ref=…:cache-<runner>`) that tries to write before the push is even attempted.
 
 ### 1. Code / config changes
 
@@ -126,16 +126,16 @@ gh auth token | docker login ghcr.io -u neilkuan --password-stdin
 # 2. Copy an existing multi-arch manifest to the new package name
 #    (imagetools create preserves the manifest list — no need to pull/tag/push per arch)
 docker buildx imagetools create \
-  -t ghcr.io/neilkuan/openab-go-<name>:bootstrap \
-  ghcr.io/neilkuan/openab-go-claude:<latest-stable>
+  -t ghcr.io/neilkuan/quill-<name>:bootstrap \
+  ghcr.io/neilkuan/quill-claude:<latest-stable>
 
 # 3. Verify the package exists, is public, and linked to this repo
-gh api /user/packages/container/openab-go-<name> \
+gh api /user/packages/container/quill-<name> \
   | jq '{name, visibility, repository: .repository.full_name}'
-# expected: visibility=public, repository=neilkuan/openab-go
+# expected: visibility=public, repository=neilkuan/quill
 ```
 
-The `visibility` and `repository` fields are inherited from the source image's OCI labels (specifically `org.opencontainers.image.source`), so copying any of the existing public openab-go-* images sets them correctly. Bootstrap image content is irrelevant — it's overwritten by the first successful RC build.
+The `visibility` and `repository` fields are inherited from the source image's OCI labels (specifically `org.opencontainers.image.source`), so copying any of the existing public quill-* images sets them correctly. Bootstrap image content is irrelevant — it's overwritten by the first successful RC build.
 
 ### 3. Push the RC tag
 
@@ -148,8 +148,8 @@ git checkout release/vX.Y.Z
 
 All 4 variants × 2 platforms should build and push. If the new variant still fails with `write_package denied`, the repo needs to be given **Actions write access** to the new package:
 
-- Open `https://github.com/users/neilkuan/packages/container/openab-go-<name>/settings`
-- **Manage Actions access** → **Add repository** → `neilkuan/openab-go` → role `Write`
+- Open `https://github.com/users/neilkuan/packages/container/quill-<name>/settings`
+- **Manage Actions access** → **Add repository** → `neilkuan/quill` → role `Write`
 
 This setting is **not exposed by any REST/GraphQL API** — it must be done via the web UI exactly once per new package.
 
@@ -159,7 +159,7 @@ The `:bootstrap` tag is only useful for the first push. Once the RC has produced
 
 ```bash
 gh api -X DELETE \
-  /user/packages/container/openab-go-<name>/versions/<version-id-of-bootstrap>
+  /user/packages/container/quill-<name>/versions/<version-id-of-bootstrap>
 ```
 
-(Look up the version id via `gh api /user/packages/container/openab-go-<name>/versions | jq '.[] | select(.metadata.container.tags[] == "bootstrap")'`.)
+(Look up the version id via `gh api /user/packages/container/quill-<name>/versions | jq '.[] | select(.metadata.container.tags[] == "bootstrap")'`.)

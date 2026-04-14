@@ -6,15 +6,15 @@ import (
 )
 
 func TestExpandEnv(t *testing.T) {
-	t.Setenv("OPENAB_TEST_VAR", "expanded_value")
+	t.Setenv("QUILL_TEST_VAR", "expanded_value")
 
 	tests := []struct {
 		input    string
 		expected string
 	}{
-		{"${OPENAB_TEST_VAR}", "expanded_value"},
+		{"${QUILL_TEST_VAR}", "expanded_value"},
 		{"plain_value", "plain_value"},
-		{"${OPENAB_NONEXISTENT_VAR_12345}", ""},
+		{"${QUILL_NONEXISTENT_VAR_12345}", ""},
 		{"partial${VAR}", "partial${VAR}"},
 		{"", ""},
 	}

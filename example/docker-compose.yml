@@ -1,19 +1,19 @@
 services:
   kiro:
-    image: "ghcr.io/neilkuan/openab-go:latest"
-    container_name: openab-go-kiro
+    image: "ghcr.io/neilkuan/quill:latest"
+    container_name: quill-kiro
     restart: always
     volumes:
       - ./data/home/agent:/home/agent
-      - ./data/config/kiro/config.toml:/etc/openab-go/config.toml
+      - ./data/config/kiro/config.toml:/etc/quill/config.toml
     environment:
-      - OPENAB_GO_LOG=debug
+      - QUILL_LOG=debug
   claude:
-    image: "ghcr.io/neilkuan/openab-go-claude:latest"
-    container_name: openab-go-claude
+    image: "ghcr.io/neilkuan/quill-claude:latest"
+    container_name: quill-claude
     restart: always
     volumes:
       - ./data/home/node:/home/node
-      - ./data/config/claude/config.toml:/etc/openab-go/config.toml
+      - ./data/config/claude/config.toml:/etc/quill/config.toml
     environment:
-      - OPENAB_GO_LOG=debug
+      - QUILL_LOG=debug
