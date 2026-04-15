@@ -7,6 +7,9 @@ COPY . .
 ARG COMMIT=unknown
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.commit=${COMMIT}" -o quill .
 
+# --- AWS CLI source stage (official upstream image, always latest v2) ---
+FROM public.ecr.aws/aws-cli/aws-cli:latest AS aws-source
+
 # --- Runtime stage ---
 FROM debian:bookworm-slim
 
@@ -37,6 +40,16 @@ RUN ARCH=$(dpkg --print-architecture) \
        | tar xz -C /tmp \
     && mv /tmp/gh_${GH_CLI_VERSION}_linux_${ARCH}/bin/gh /usr/local/bin/gh \
     && rm -rf /tmp/*
+
+# Layer 3: aws CLI v2 — copied from the official upstream image.
+# NOTE: only copy /usr/local/aws-cli/ (its internal symlinks are relative and
+# survive COPY). The PATH-level symlink must be recreated via `ln -s` below —
+# copying /usr/local/bin/aws with COPY turns the symlink into a real file,
+# after which PyInstaller resolves /proc/self/exe to /usr/local/bin where the
+# bundled libpython*.so isn't found, breaking the CLI at runtime.
+COPY --from=aws-source /usr/local/aws-cli/ /usr/local/aws-cli/
+RUN ln -s /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws \
+    && ln -s /usr/local/aws-cli/v2/current/bin/aws_completer /usr/local/bin/aws_completer
 
 RUN useradd -m -s /bin/bash -u 1000 agent \
     && mkdir -p /home/agent/.local/share/kiro-cli /home/agent/.kiro \
