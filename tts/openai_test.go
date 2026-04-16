@@ -27,7 +27,6 @@ func TestOpenAISynthesizer_Synthesize_Success(t *testing.T) {
 		if req.Model != "tts-1" {
 			t.Errorf("expected model 'tts-1', got %q", req.Model)
 		}
-		// Voice should be a string for built-in voices
 		if req.Voice != "nova" {
 			t.Errorf("expected voice 'nova', got %v", req.Voice)
 		}
@@ -52,115 +51,6 @@ func TestOpenAISynthesizer_Synthesize_Success(t *testing.T) {
 	data, _ := os.ReadFile(audioPath)
 	if string(data) != string(fakeAudio) {
 		t.Errorf("unexpected audio content")
-	}
-}
-
-func TestOpenAISynthesizer_SynthesizeWithVoice_CustomID(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req map[string]interface{}
-		body, _ := io.ReadAll(r.Body)
-		json.Unmarshal(body, &req)
-
-		// Custom voice ID should be wrapped as {"id": "voice_xxx"}
-		voice, ok := req["voice"].(map[string]interface{})
-		if !ok {
-			t.Fatalf("expected voice to be object, got %T: %v", req["voice"], req["voice"])
-		}
-		if voice["id"] != "voice_abc123" {
-			t.Errorf("expected voice id 'voice_abc123', got %v", voice["id"])
-		}
-
-		w.Write([]byte("audio"))
-	}))
-	defer server.Close()
-
-	synth := NewOpenAISynthesizer(OpenAIConfig{
-		APIKey:  "test-key",
-		BaseURL: server.URL,
-	})
-
-	audioPath, err := synth.SynthesizeWithVoice("test", "voice_abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	os.Remove(audioPath)
-}
-
-func TestOpenAISynthesizer_SynthesizeWithVoice_BuiltIn(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req map[string]interface{}
-		body, _ := io.ReadAll(r.Body)
-		json.Unmarshal(body, &req)
-
-		// Built-in voice should be a plain string
-		voice, ok := req["voice"].(string)
-		if !ok {
-			t.Fatalf("expected voice to be string, got %T: %v", req["voice"], req["voice"])
-		}
-		if voice != "shimmer" {
-			t.Errorf("expected voice 'shimmer', got %q", voice)
-		}
-
-		w.Write([]byte("audio"))
-	}))
-	defer server.Close()
-
-	synth := NewOpenAISynthesizer(OpenAIConfig{
-		APIKey:  "test-key",
-		BaseURL: server.URL,
-	})
-
-	audioPath, err := synth.SynthesizeWithVoice("test", "shimmer")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	os.Remove(audioPath)
-}
-
-func TestOpenAISynthesizer_CreateVoice_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/audio/voices" {
-			t.Errorf("expected /audio/voices, got %s", r.URL.Path)
-		}
-		if !strings.Contains(r.Header.Get("Content-Type"), "multipart/form-data") {
-			t.Error("expected multipart/form-data")
-		}
-
-		r.ParseMultipartForm(32 << 20)
-		if r.FormValue("name") != "My Voice" {
-			t.Errorf("expected name 'My Voice', got %q", r.FormValue("name"))
-		}
-		if r.FormValue("consent") != "consent" {
-			t.Errorf("expected consent field")
-		}
-		_, _, err := r.FormFile("audio_sample")
-		if err != nil {
-			t.Fatalf("expected audio_sample file: %v", err)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(createVoiceResponse{
-			ID:   "voice_test123",
-			Name: "My Voice",
-		})
-	}))
-	defer server.Close()
-
-	tmpDir := t.TempDir()
-	audioPath := tmpDir + "/sample.wav"
-	os.WriteFile(audioPath, []byte("fake-audio"), 0644)
-
-	synth := NewOpenAISynthesizer(OpenAIConfig{
-		APIKey:  "test-key",
-		BaseURL: server.URL,
-	})
-
-	voiceID, err := synth.CreateVoice("My Voice", audioPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if voiceID != "voice_test123" {
-		t.Errorf("expected 'voice_test123', got %q", voiceID)
 	}
 }
 

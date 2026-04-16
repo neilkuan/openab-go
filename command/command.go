@@ -9,13 +9,10 @@ import (
 )
 
 const (
-	CmdSessions   = "sessions"
-	CmdReset      = "reset"
-	CmdResume     = "resume"
-	CmdInfo       = "info"
-	CmdSetVoice   = "setvoice"
-	CmdVoiceClear = "voice-clear"
-	CmdVoiceMode  = "voicemode"
+	CmdSessions = "sessions"
+	CmdReset    = "reset"
+	CmdResume   = "resume"
+	CmdInfo     = "info"
 )
 
 type Command struct {
@@ -34,7 +31,6 @@ func ParseCommand(text string) (*Command, bool) {
 	name := strings.ToLower(parts[0])
 	known := map[string]bool{
 		CmdSessions: true, CmdReset: true, CmdResume: true, CmdInfo: true,
-		CmdSetVoice: true, CmdVoiceClear: true, CmdVoiceMode: true,
 	}
 	if !known[name] {
 		return nil, false
@@ -91,7 +87,6 @@ type VoiceInfo struct {
 	TTSEnabled  bool
 	TTSModel    string
 	TTSVoice    string
-	CustomVoice string // per-user custom voice ID, if set
 }
 
 // ExecuteInfo returns detailed info for a specific session.
@@ -134,11 +129,7 @@ func ExecuteInfo(pool *acp.SessionPool, threadKey string, voice *VoiceInfo) stri
 			sb.WriteString("STT: disabled\n")
 		}
 		if voice.TTSEnabled {
-			voiceDisplay := voice.TTSVoice
-			if voice.CustomVoice != "" {
-				voiceDisplay = fmt.Sprintf("%s (custom: `%s`)", voice.TTSVoice, voice.CustomVoice)
-			}
-			sb.WriteString(fmt.Sprintf("TTS: `%s` / %s", voice.TTSModel, voiceDisplay))
+			sb.WriteString(fmt.Sprintf("TTS: `%s` / %s", voice.TTSModel, voice.TTSVoice))
 		} else {
 			sb.WriteString("TTS: disabled")
 		}

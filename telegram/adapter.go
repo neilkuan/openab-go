@@ -42,7 +42,7 @@ type Adapter struct {
 	consecutiveErrors atomic.Int64
 }
 
-func NewAdapter(cfg config.TelegramConfig, pool *acp.SessionPool, transcriber stt.Transcriber, synthesizer tts.Synthesizer, voiceStore *tts.VoiceStore, ttsCfg config.TTSConfig, mdCfg config.MarkdownConfig) (*Adapter, error) {
+func NewAdapter(cfg config.TelegramConfig, pool *acp.SessionPool, transcriber stt.Transcriber, synthesizer tts.Synthesizer, ttsCfg config.TTSConfig, mdCfg config.MarkdownConfig) (*Adapter, error) {
 	allowed := make(map[int64]bool, len(cfg.AllowedChats))
 	for _, id := range cfg.AllowedChats {
 		allowed[id] = true
@@ -70,7 +70,6 @@ func NewAdapter(cfg config.TelegramConfig, pool *acp.SessionPool, transcriber st
 		ReactionsConfig:   cfg.Reactions,
 		Transcriber:       transcriber,
 		Synthesizer:       synthesizer,
-		VoiceStore:        voiceStore,
 		TTSConfig:         ttsCfg,
 		MarkdownTableMode: markdown.ParseMode(mdCfg.Tables),
 	}
@@ -131,9 +130,6 @@ func (a *Adapter) Start() error {
 			{Command: "info", Description: "Show current chat session details"},
 			{Command: "reset", Description: "Reset the current session"},
 			{Command: "resume", Description: "Attempt to restore a previous session for this chat"},
-			{Command: "setvoice", Description: "Set custom bot voice (reply to a voice message)"},
-			{Command: "voice_clear", Description: "Clear your custom voice"},
-			{Command: "voicemode", Description: "Set voice mode: echo or default"},
 		},
 	})
 	if err != nil {
