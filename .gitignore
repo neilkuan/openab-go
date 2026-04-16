@@ -33,3 +33,6 @@ example/data/config/claude/*
 !example/data/config/claude/config.toml
 example/data/config/kiro/*
 !example/data/config/kiro/config.toml
+
+.venv/**/*
+*.py

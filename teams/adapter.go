@@ -31,14 +31,37 @@ func NewAdapter(cfg config.TeamsConfig, pool *acp.SessionPool, transcriber stt.T
 	auth := NewBotAuth(cfg.AppID, cfg.AppSecret, cfg.TenantID)
 	client := NewBotClient(auth)
 
+	allowedChannels := make(map[string]bool, len(cfg.AllowedChannels))
+	for _, ch := range cfg.AllowedChannels {
+		allowedChannels[ch] = true
+	}
+
+	allowedUserIDs := make(map[string]bool)
+	allowAnyUser := false
+	for _, uid := range cfg.AllowedUserIDs {
+		if uid == "*" {
+			allowAnyUser = true
+		} else {
+			allowedUserIDs[uid] = true
+		}
+	}
+
+	toolDisplay := cfg.ToolDisplay
+	if toolDisplay == "" {
+		toolDisplay = "compact"
+	}
+
 	handler := &Handler{
 		Pool:              pool,
 		Client:            client,
+		AllowedChannels:   allowedChannels,
+		AllowedUserIDs:    allowedUserIDs,
+		AllowAnyUser:      allowAnyUser,
 		Transcriber:       transcriber,
 		Synthesizer:       synthesizer,
 		TTSConfig:         ttsCfg,
 		MarkdownTableMode: markdown.ParseMode(mdCfg.Tables),
-		ToolDisplay:       "compact",
+		ToolDisplay:       toolDisplay,
 	}
 
 	mux := buildMux(auth, handler)
