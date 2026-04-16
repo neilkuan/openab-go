@@ -149,6 +149,7 @@ type TeamsConfig struct {
 	AppID     string `toml:"app_id"`
 	AppSecret string `toml:"app_secret"`
 	TenantID  string `toml:"tenant_id"`
+	Listen    string `toml:"listen"`
 }
 
 // --- Defaults ---
@@ -191,6 +192,14 @@ func applyDefaults(cfg *Config) {
 	}
 
 	applyTelegramReactionDefaults(&cfg.Telegram.Reactions)
+
+	// Teams — if the section has app_id and app_secret, default to enabled
+	if cfg.Teams.AppID != "" && cfg.Teams.AppSecret != "" && !cfg.Teams.Enabled {
+		cfg.Teams.Enabled = true
+	}
+	if cfg.Teams.Listen == "" {
+		cfg.Teams.Listen = ":3978"
+	}
 }
 
 func applySTTDefaults(tc *STTConfig) {
