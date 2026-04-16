@@ -176,8 +176,8 @@ func (h *Handler) OnMessage(activity *Activity) {
 		activity.ServiceURL,
 		conversationID,
 		&Activity{
-			Type:     "message",
-			Text:     "💭 _thinking..._",
+			Type:       "message",
+			Text:       "💭 _thinking..._",
 			TextFormat: "markdown",
 		},
 	)
