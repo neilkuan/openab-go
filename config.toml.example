@@ -126,6 +126,7 @@ session_ttl_hours = 24
 # api_key = "${OPENAI_API_KEY}"
 # model = "tts-1"              # or "tts-1-hd", "gpt-4o-mini-tts"
 # voice = "nova"               # alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer
+# instructions = ""            # voice style instructions (gpt-4o-mini-tts only)
 # base_url = "https://api.openai.com/v1"
 
 # Gemini TTS (female voice):
@@ -134,6 +135,7 @@ session_ttl_hours = 24
 # api_key = "${GEMINI_API_KEY}"
 # model = "gemini-3.1-flash-tts-preview"   # or gemini-2.5-flash-preview-tts, gemini-2.5-pro-preview-tts
 # voice = "Kore"               # Kore (Firm, Middle pitch)
+# instructions = ""            # tone/style system instruction, e.g. "Speak in a cheerful and friendly tone"
 
 # Gemini TTS (male voice):
 # [tts]
@@ -141,3 +143,4 @@ session_ttl_hours = 24
 # api_key = "${GEMINI_API_KEY}"
 # model = "gemini-3.1-flash-tts-preview"
 # voice = "Orus"               # Orus (Firm, Lower middle pitch)
+# instructions = ""

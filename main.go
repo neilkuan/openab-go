@@ -85,18 +85,20 @@ func main() {
 		switch cfg.TTS.Provider {
 		case "openai":
 			synth = tts.NewOpenAISynthesizer(tts.OpenAIConfig{
-				APIKey:     cfg.TTS.APIKey,
-				Model:      cfg.TTS.Model,
-				Voice:      cfg.TTS.Voice,
-				BaseURL:    cfg.TTS.BaseURL,
-				TimeoutSec: cfg.TTS.TimeoutSec,
+				APIKey:       cfg.TTS.APIKey,
+				Model:        cfg.TTS.Model,
+				Voice:        cfg.TTS.Voice,
+				Instructions: cfg.TTS.Instructions,
+				BaseURL:      cfg.TTS.BaseURL,
+				TimeoutSec:   cfg.TTS.TimeoutSec,
 			})
 		case "gemini":
 			synth = tts.NewGeminiSynthesizer(tts.GeminiConfig{
-				APIKey:     cfg.TTS.APIKey,
-				Model:      cfg.TTS.Model,
-				Voice:      cfg.TTS.Voice,
-				TimeoutSec: cfg.TTS.TimeoutSec,
+				APIKey:       cfg.TTS.APIKey,
+				Model:        cfg.TTS.Model,
+				Voice:        cfg.TTS.Voice,
+				Instructions: cfg.TTS.Instructions,
+				TimeoutSec:   cfg.TTS.TimeoutSec,
 			})
 		default:
 			slog.Warn("unknown tts provider, voice synthesis disabled", "provider", cfg.TTS.Provider)

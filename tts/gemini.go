@@ -15,10 +15,11 @@ import (
 
 // GeminiConfig holds configuration for the Gemini TTS API.
 type GeminiConfig struct {
-	APIKey     string
-	Model      string // default: "gemini-3.1-flash-tts-preview"
-	Voice      string // prebuilt voice name (default: "Kore")
-	TimeoutSec int
+	APIKey       string
+	Model        string // default: "gemini-3.1-flash-tts-preview"
+	Voice        string // prebuilt voice name (default: "Kore")
+	Instructions string // Voice style/tone instructions (used as system instruction)
+	TimeoutSec   int
 }
 
 // GeminiSynthesizer uses the Google Gemini API for text-to-speech.
@@ -70,6 +71,13 @@ func (g *GeminiSynthesizer) Synthesize(text string) (string, error) {
 				},
 			},
 		},
+	}
+	if g.config.Instructions != "" {
+		config.SystemInstruction = &genai.Content{
+			Parts: []*genai.Part{
+				{Text: g.config.Instructions},
+			},
+		}
 	}
 
 	var audioData []byte

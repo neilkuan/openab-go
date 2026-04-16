@@ -114,14 +114,15 @@ type STTConfig struct {
 // --- TTS (Text-to-Speech) ---
 
 type TTSConfig struct {
-	Enabled     bool   `toml:"enabled"`
-	Provider    string `toml:"provider"`     // "openai" or "gemini" (default: "openai")
-	APIKey      string `toml:"api_key"`
-	Model       string `toml:"model"`
-	Voice       string `toml:"voice"`
-	VoiceGender string `toml:"voice_gender"` // OpenAI only; ignored when provider != "openai"
-	BaseURL     string `toml:"base_url"`     // OpenAI only
-	TimeoutSec  int    `toml:"timeout_sec"`
+	Enabled      bool   `toml:"enabled"`
+	Provider     string `toml:"provider"`      // "openai" or "gemini" (default: "openai")
+	APIKey       string `toml:"api_key"`
+	Model        string `toml:"model"`
+	Voice        string `toml:"voice"`
+	Instructions string `toml:"instructions"`  // Voice style/tone instructions
+	VoiceGender  string `toml:"voice_gender"`  // OpenAI only; ignored when provider != "openai"
+	BaseURL      string `toml:"base_url"`      // OpenAI only
+	TimeoutSec   int    `toml:"timeout_sec"`
 }
 
 // --- Telegram ---
