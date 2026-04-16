@@ -19,6 +19,8 @@ type GeminiConfig struct {
 	Model        string // default: "gemini-3.1-flash-tts-preview"
 	Voice        string // prebuilt voice name (default: "Kore")
 	Instructions string // Voice style/tone instructions (used as system instruction)
+	StylePrefix  string // Emotion tag prepended to each line, e.g. "[shy]"
+	StyleSuffix  string // Emotion tag appended to each line, e.g. "[laughs softly]"
 	TimeoutSec   int
 }
 
@@ -52,6 +54,8 @@ func (g *GeminiSynthesizer) Synthesize(text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create genai client: %w", err)
 	}
+
+	text = g.applyStyleTags(text)
 
 	contents := []*genai.Content{
 		{
@@ -116,6 +120,29 @@ func (g *GeminiSynthesizer) Synthesize(text string) (string, error) {
 	}
 
 	return localPath, nil
+}
+
+// applyStyleTags wraps each non-empty line with prefix/suffix emotion tags.
+// e.g. prefix="[shy]" suffix="[laughs softly]" turns "Hello" into "[shy] Hello [laughs softly]"
+func (g *GeminiSynthesizer) applyStyleTags(text string) string {
+	if g.config.StylePrefix == "" && g.config.StyleSuffix == "" {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if g.config.StylePrefix != "" {
+			trimmed = g.config.StylePrefix + " " + trimmed
+		}
+		if g.config.StyleSuffix != "" {
+			trimmed = trimmed + " " + g.config.StyleSuffix
+		}
+		lines[i] = trimmed
+	}
+	return strings.Join(lines, "\n")
 }
 
 // parseAudioMimeType extracts bits per sample and sample rate from a MIME type.

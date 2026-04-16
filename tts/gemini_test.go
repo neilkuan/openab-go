@@ -83,4 +83,59 @@ func TestNewGeminiSynthesizer_Defaults(t *testing.T) {
 	}
 }
 
+func TestApplyStyleTags(t *testing.T) {
+	tests := []struct {
+		name    string
+		prefix  string
+		suffix  string
+		input   string
+		want    string
+	}{
+		{
+			name:  "no tags",
+			input: "Hello world",
+			want:  "Hello world",
+		},
+		{
+			name:   "prefix only",
+			prefix: "[shy]",
+			input:  "Hello\nWorld",
+			want:   "[shy] Hello\n[shy] World",
+		},
+		{
+			name:   "suffix only",
+			suffix: "[laughs softly]",
+			input:  "Hello\nWorld",
+			want:   "Hello [laughs softly]\nWorld [laughs softly]",
+		},
+		{
+			name:   "both tags",
+			prefix: "[shy]",
+			suffix: "[laughs softly]",
+			input:  "Line 1\nLine 2\nLine 3",
+			want:   "[shy] Line 1 [laughs softly]\n[shy] Line 2 [laughs softly]\n[shy] Line 3 [laughs softly]",
+		},
+		{
+			name:   "skip empty lines",
+			prefix: "[shy]",
+			suffix: "[laughs]",
+			input:  "Hello\n\nWorld",
+			want:   "[shy] Hello [laughs]\n\n[shy] World [laughs]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &GeminiSynthesizer{config: GeminiConfig{
+				StylePrefix: tt.prefix,
+				StyleSuffix: tt.suffix,
+			}}
+			got := g.applyStyleTags(tt.input)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 var _ Synthesizer = (*GeminiSynthesizer)(nil)

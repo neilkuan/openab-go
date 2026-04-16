@@ -120,6 +120,8 @@ type TTSConfig struct {
 	Model        string `toml:"model"`
 	Voice        string `toml:"voice"`
 	Instructions string `toml:"instructions"`  // Voice style/tone instructions
+	StylePrefix  string `toml:"style_prefix"`  // Gemini only: emotion tag prepended to each line, e.g. "[shy]"
+	StyleSuffix  string `toml:"style_suffix"`  // Gemini only: emotion tag appended to each line, e.g. "[laughs softly]"
 	VoiceGender  string `toml:"voice_gender"`  // OpenAI only; ignored when provider != "openai"
 	BaseURL      string `toml:"base_url"`      // OpenAI only
 	TimeoutSec   int    `toml:"timeout_sec"`
