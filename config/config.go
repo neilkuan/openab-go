@@ -114,13 +114,14 @@ type STTConfig struct {
 // --- TTS (Text-to-Speech) ---
 
 type TTSConfig struct {
-	Enabled    bool   `toml:"enabled"`
-	APIKey     string `toml:"api_key"`     // OpenAI API key
-	Model      string `toml:"model"`       // Model name (default: "tts-1")
-	Voice      string `toml:"voice"`       // Voice name (overrides voice_gender if set)
-	VoiceGender string `toml:"voice_gender"` // "female" or "male" (default: "female")
-	BaseURL    string `toml:"base_url"`    // Custom API endpoint
-	TimeoutSec int    `toml:"timeout_sec"` // HTTP timeout in seconds (default: 60)
+	Enabled     bool   `toml:"enabled"`
+	Provider    string `toml:"provider"`     // "openai" or "gemini" (default: "openai")
+	APIKey      string `toml:"api_key"`
+	Model       string `toml:"model"`
+	Voice       string `toml:"voice"`
+	VoiceGender string `toml:"voice_gender"` // OpenAI only; ignored when provider != "openai"
+	BaseURL     string `toml:"base_url"`     // OpenAI only
+	TimeoutSec  int    `toml:"timeout_sec"`
 }
 
 // --- Telegram ---
@@ -210,22 +211,36 @@ func applyTTSDefaults(tc *TTSConfig) {
 	if tc.APIKey != "" && !tc.Enabled {
 		tc.Enabled = true
 	}
-	if tc.Model == "" {
-		tc.Model = "tts-1"
-	}
-	if tc.VoiceGender == "" {
-		tc.VoiceGender = "female"
-	}
-	if tc.Voice == "" {
-		switch tc.VoiceGender {
-		case "male":
-			tc.Voice = "ash"
-		default: // "female" or anything else
-			tc.Voice = "nova"
-		}
+	if tc.Provider == "" {
+		tc.Provider = "openai"
 	}
 	if tc.TimeoutSec == 0 {
 		tc.TimeoutSec = 60
+	}
+
+	switch tc.Provider {
+	case "gemini":
+		if tc.Model == "" {
+			tc.Model = "gemini-3.1-flash-tts-preview"
+		}
+		if tc.Voice == "" {
+			tc.Voice = "Kore"
+		}
+	default: // "openai"
+		if tc.Model == "" {
+			tc.Model = "tts-1"
+		}
+		if tc.VoiceGender == "" {
+			tc.VoiceGender = "female"
+		}
+		if tc.Voice == "" {
+			switch tc.VoiceGender {
+			case "male":
+				tc.Voice = "ash"
+			default:
+				tc.Voice = "nova"
+			}
+		}
 	}
 }
 

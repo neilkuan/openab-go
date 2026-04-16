@@ -81,20 +81,28 @@ func main() {
 
 	// Create TTS (text-to-speech) synthesizer if configured
 	var synth tts.Synthesizer
-	var voiceStore *tts.VoiceStore
 	if cfg.TTS.Enabled {
-		synth = tts.NewOpenAISynthesizer(tts.OpenAIConfig{
-			APIKey:     cfg.TTS.APIKey,
-			Model:      cfg.TTS.Model,
-			Voice:      cfg.TTS.Voice,
-			BaseURL:    cfg.TTS.BaseURL,
-			TimeoutSec: cfg.TTS.TimeoutSec,
-		})
-		slog.Info("🔊 tts enabled", "model", cfg.TTS.Model, "voice", cfg.TTS.Voice, "voice_gender", cfg.TTS.VoiceGender)
-		var err error
-		voiceStore, err = tts.NewVoiceStore(cfg.Agent.WorkingDir)
-		if err != nil {
-			slog.Warn("failed to create voice store, per-user voices disabled", "error", err)
+		switch cfg.TTS.Provider {
+		case "openai":
+			synth = tts.NewOpenAISynthesizer(tts.OpenAIConfig{
+				APIKey:     cfg.TTS.APIKey,
+				Model:      cfg.TTS.Model,
+				Voice:      cfg.TTS.Voice,
+				BaseURL:    cfg.TTS.BaseURL,
+				TimeoutSec: cfg.TTS.TimeoutSec,
+			})
+		case "gemini":
+			synth = tts.NewGeminiSynthesizer(tts.GeminiConfig{
+				APIKey:     cfg.TTS.APIKey,
+				Model:      cfg.TTS.Model,
+				Voice:      cfg.TTS.Voice,
+				TimeoutSec: cfg.TTS.TimeoutSec,
+			})
+		default:
+			slog.Warn("unknown tts provider, voice synthesis disabled", "provider", cfg.TTS.Provider)
+		}
+		if synth != nil {
+			slog.Info("🔊 tts enabled", "provider", cfg.TTS.Provider, "model", cfg.TTS.Model, "voice", cfg.TTS.Voice)
 		}
 	}
 
@@ -103,7 +111,7 @@ func main() {
 	var healthChecks []api.HealthCheck
 
 	if cfg.Discord.Enabled {
-		adapter, err := discord.NewAdapter(cfg.Discord, pool, t, synth, voiceStore, cfg.TTS, cfg.Markdown)
+		adapter, err := discord.NewAdapter(cfg.Discord, pool, t, synth, cfg.TTS, cfg.Markdown)
 		if err != nil {
 			slog.Error("failed to create discord adapter", "error", err)
 			os.Exit(1)
@@ -116,7 +124,7 @@ func main() {
 	}
 
 	if cfg.Telegram.Enabled {
-		adapter, err := telegram.NewAdapter(cfg.Telegram, pool, t, synth, voiceStore, cfg.TTS, cfg.Markdown)
+		adapter, err := telegram.NewAdapter(cfg.Telegram, pool, t, synth, cfg.TTS, cfg.Markdown)
 		if err != nil {
 			slog.Error("failed to create telegram adapter", "error", err)
 			os.Exit(1)
