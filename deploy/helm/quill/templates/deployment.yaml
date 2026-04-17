@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "quill.fullname" . }}
+  labels:
+    {{- include "quill.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "quill.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "quill.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: quill
+          image: "{{ .Values.image.repository }}:{{ include "quill.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["/etc/quill/config.toml"]
+          ports:
+            - name: teams
+              containerPort: 3978
+            - name: api
+              containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: {{ include "quill.fullname" . }}-secrets
+          env:
+            - name: QUILL_LOG
+              value: {{ .Values.agent.logLevel | quote }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/quill
+              readOnly: true
+            - name: workdir
+              mountPath: {{ .Values.agent.workingDir }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "quill.fullname" . }}-config
+        - name: workdir
+          emptyDir: {}

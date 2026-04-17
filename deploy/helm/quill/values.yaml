@@ -1,0 +1,79 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/neilkuan/quill
+  tag: ""  # defaults to appVersion
+  pullPolicy: IfNotPresent
+
+# -- Agent configuration
+agent:
+  command: kiro-cli
+  args: ["acp", "--trust-all-tools"]
+  workingDir: /home/agent
+  logLevel: info
+
+pool:
+  maxSessions: 10
+  sessionTTLHours: 24
+
+# -- Platform tokens (injected as Secret → env vars)
+secrets:
+  # Teams (required for EKS deployment)
+  TEAMS_APP_ID: ""
+  TEAMS_APP_SECRET: ""
+  TEAMS_TENANT_ID: ""
+  # Discord (optional)
+  DISCORD_BOT_TOKEN: ""
+  # Telegram (optional)
+  TELEGRAM_BOT_TOKEN: ""
+  # STT / TTS (optional)
+  OPENAI_API_KEY: ""
+  GEMINI_API_KEY: ""
+
+# -- Teams adapter
+teams:
+  enabled: true
+  listen: ":3978"
+  # allowedUserIds: ["*"]
+
+# -- Discord adapter (optional)
+discord:
+  enabled: false
+  allowedChannels: []
+
+# -- Telegram adapter (optional)
+telegram:
+  enabled: false
+  allowedChats: []
+
+# -- Health / monitoring API
+api:
+  enabled: true
+  listen: ":8080"
+
+# -- Service
+service:
+  type: NodePort
+
+# -- Ingress (ALB)
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+    alb.ingress.kubernetes.io/healthcheck-port: "8080"
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:...
+  host: ""  # quill.example.com
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi

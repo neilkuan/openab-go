@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "quill.fullname" . }}
+  labels:
+    {{- include "quill.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "quill.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: teams
+      port: 3978
+      targetPort: teams
+    - name: api
+      port: 8080
+      targetPort: api
