@@ -251,6 +251,22 @@ docker run -v $(pwd)/config.toml:/etc/quill/config.toml \
   ghcr.io/neilkuan/quill:latest
 ```
 
+##### Kubernetes（Helm）
+
+包含 Helm chart 供 EKS 部署（Teams webhook 需要公開 HTTPS endpoint）：
+
+```bash
+helm install quill deploy/helm/quill \
+  -n quill --create-namespace \
+  --set instances.kiro.secrets.TEAMS_APP_ID="<app-id>" \
+  --set instances.kiro.secrets.TEAMS_APP_SECRET="<secret>" \
+  --set instances.kiro.secrets.TEAMS_TENANT_ID="<tenant>" \
+  --set ingress.host="quill.example.com" \
+  --set 'ingress.annotations.alb\.ingress\.kubernetes\.io/certificate-arn=arn:aws:acm:...'
+```
+
+Chart 支援多 instance 部署 — 在同一個 release 裡同時跑 Kiro、Claude、Codex。詳見 [`deploy/helm/quill/README.md`](deploy/helm/quill/README.md)。
+
 ---
 
 ##### 開發
@@ -312,6 +328,8 @@ quill/
 │   ├── handler.go       # Teams 訊息處理、mention 偵測、ACP 串流
 │   ├── types.go         # Bot Framework Activity 類型
 │   └── appmanifest/     # Teams App Manifest、圖示、打包指南
+├── deploy/
+│   └── helm/quill/      # Helm chart 供 EKS 部署（多 instance）
 ├── scripts/
 │   └── release.sh       # Release 自動化（stable PR + RC tag）
 ├── Dockerfile           # Kiro CLI 變體

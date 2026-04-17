@@ -251,6 +251,22 @@ docker run -v $(pwd)/config.toml:/etc/quill/config.toml \
   ghcr.io/neilkuan/quill:latest
 ```
 
+##### Kubernetes (Helm)
+
+A Helm chart is included for EKS deployment (required for Teams webhook ingress):
+
+```bash
+helm install quill deploy/helm/quill \
+  -n quill --create-namespace \
+  --set instances.kiro.secrets.TEAMS_APP_ID="<app-id>" \
+  --set instances.kiro.secrets.TEAMS_APP_SECRET="<secret>" \
+  --set instances.kiro.secrets.TEAMS_TENANT_ID="<tenant>" \
+  --set ingress.host="quill.example.com" \
+  --set 'ingress.annotations.alb\.ingress\.kubernetes\.io/certificate-arn=arn:aws:acm:...'
+```
+
+The chart supports multi-instance deployment — run Kiro, Claude, and Codex in a single release. See [`deploy/helm/quill/README.md`](deploy/helm/quill/README.md) for details.
+
 ---
 
 ##### Development
@@ -312,6 +328,8 @@ quill/
 │   ├── handler.go       # Teams message handler, mention detection, ACP streaming
 │   ├── types.go         # Bot Framework Activity types
 │   └── appmanifest/     # Teams App Manifest, icons, packaging guide
+├── deploy/
+│   └── helm/quill/      # Helm chart for EKS deployment (multi-instance)
 ├── scripts/
 │   └── release.sh       # Release automation (stable PR + RC tags)
 ├── Dockerfile           # Kiro CLI variant
