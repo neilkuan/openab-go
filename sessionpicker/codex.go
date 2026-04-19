@@ -107,6 +107,11 @@ func (c *CodexPicker) List(cwd string, limit int) ([]Session, error) {
 			bySession[e.SessionID] = a
 		}
 		a.msgCount++
+		// history.jsonl is normally append-only and time-ordered, but
+		// we do not assume that: firstTS/lastTS are refreshed any time
+		// we see an entry that beats the current extremum, so the
+		// earliest-text-as-title invariant holds even if the file has
+		// been edited or rewritten out of order.
 		if e.TS < a.firstTS {
 			a.firstTS = e.TS
 			a.title = e.Text

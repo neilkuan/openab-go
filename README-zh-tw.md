@@ -275,9 +275,9 @@ listen = ":8080"
 | Kiro CLI | `~/.kiro/sessions/cli/<uuid>.{json,jsonl}` | ✅ |
 | Claude Code | `~/.claude/projects/<encoded-cwd>/<uuid>.jsonl` | ✅ |
 | GitHub Copilot CLI | `~/.copilot/session-state/<uuid>/`（`workspace.yaml` + `events.jsonl`） | ✅（best-effort 從 `workspace.yaml` 讀） |
-| Codex | `~/.codex/history.jsonl`（扁平索引） | ❌ — Codex history 的每一筆沒有 cwd 欄位，picker 會列出所有 session 且忽略 cwd 參數 |
+| Codex | `~/.codex/history.jsonl`（扁平索引） | ❌ — Codex history 的每一筆沒有 cwd 欄位。傳入非空 cwd 時 `List` 回空 slice，不會回傳未過濾的結果 |
 
-顯示 Codex session 時，picker UI 會另外提示「該 agent 不支援 cwd 過濾」，避免使用者誤以為結果已經依目錄收斂。
+顯示 Codex session 時，picker UI 會提示「該 agent 不支援 cwd 過濾」，讓使用者知道需要改用空 cwd 才能看到結果。
 
 ---
 

@@ -153,9 +153,12 @@ func loadCopilotSession(sessionDir, dirName string) (Session, bool) {
 		}
 		s.CWD = ws.cwd()
 		s.Title = ws.title()
+		// Prefer yaml's own timestamps over the dir mtime, which can be
+		// touched by unrelated filesystem operations. updated_at wins
+		// when present; otherwise fall back to created_at.
 		if !ws.UpdatedAt.IsZero() {
 			s.UpdatedAt = ws.UpdatedAt
-		} else if !ws.CreatedAt.IsZero() && fi.ModTime().Before(ws.CreatedAt) {
+		} else if !ws.CreatedAt.IsZero() {
 			s.UpdatedAt = ws.CreatedAt
 		}
 	}

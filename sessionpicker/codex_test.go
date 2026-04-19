@@ -15,14 +15,21 @@ func TestCodexPickerList_DedupeAndSort(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 
-	// aaaa has 3 entries, bbbb & cccc 1 each; malformed and empty-id
-	// lines must be skipped — so we expect 3 unique sessions.
-	if len(sessions) != 3 {
-		t.Fatalf("want 3 deduped sessions, got %d: %+v", len(sessions), sessions)
+	// aaaa has 3 entries, bbbb & cccc 1 each, dddd 2 entries;
+	// malformed and empty-id lines must be skipped — so we expect 4
+	// unique sessions.
+	if len(sessions) != 4 {
+		t.Fatalf("want 4 deduped sessions, got %d: %+v", len(sessions), sessions)
 	}
 
-	// Order is by latest ts: cccc (1776592867) > bbbb (1776592667) > aaaa (1776592300).
-	wantOrder := []string{"codex-cccc-0003", "codex-bbbb-0002", "codex-aaaa-0001"}
+	// Order is by latest ts:
+	//   cccc (1776592867) > bbbb (1776592667) > dddd (1776592500) > aaaa (1776592300).
+	wantOrder := []string{
+		"codex-cccc-0003",
+		"codex-bbbb-0002",
+		"codex-dddd-0004",
+		"codex-aaaa-0001",
+	}
 	for i, want := range wantOrder {
 		if sessions[i].ID != want {
 			t.Errorf("sessions[%d].ID = %q, want %q", i, sessions[i].ID, want)
@@ -46,6 +53,34 @@ func TestCodexPickerList_DedupeAndSort(t *testing.T) {
 	}
 	if want := time.Unix(1776592300, 0); !aaaa.UpdatedAt.Equal(want) {
 		t.Errorf("aaaa UpdatedAt = %v, want %v (latest ts)", aaaa.UpdatedAt, want)
+	}
+}
+
+func TestCodexPickerList_OutOfOrderEntries(t *testing.T) {
+	// dddd's fixture has ts=1776592500 on line 1 and ts=1776592200 on
+	// line 2 — the picker must keep the earliest-text as title even
+	// when the earlier ts arrives AFTER the later one. Regression
+	// guard for the aggregation logic in codex.go.
+	p := NewCodexPicker("testdata/codex/history.jsonl")
+	sessions, err := p.List("", 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var dddd Session
+	for _, s := range sessions {
+		if s.ID == "codex-dddd-0004" {
+			dddd = s
+			break
+		}
+	}
+	if dddd.ID == "" {
+		t.Fatal("dddd session should be listed")
+	}
+	if dddd.Title != "earliest prompt seen later" {
+		t.Errorf("title = %q, want earliest-text even when earliest ts arrived second", dddd.Title)
+	}
+	if got := dddd.UpdatedAt.Unix(); got != 1776592500 {
+		t.Errorf("UpdatedAt = %d, want 1776592500 (latest ts seen)", got)
 	}
 }
 

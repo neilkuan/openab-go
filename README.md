@@ -260,9 +260,9 @@ A `/session-picker` command is being built so users can browse and resume an age
 | Kiro CLI | `~/.kiro/sessions/cli/<uuid>.{json,jsonl}` | ✅ |
 | Claude Code | `~/.claude/projects/<encoded-cwd>/<uuid>.jsonl` | ✅ |
 | GitHub Copilot CLI | `~/.copilot/session-state/<uuid>/` (`workspace.yaml` + `events.jsonl`) | ✅ (best-effort from `workspace.yaml`) |
-| Codex | `~/.codex/history.jsonl` (flat index) | ❌ — Codex's history entries carry no cwd, so the picker lists every session and silently ignores any cwd argument |
+| Codex | `~/.codex/history.jsonl` (flat index) | ❌ — Codex's history entries carry no cwd. `List` returns an empty slice when a non-empty cwd is passed, rather than silently returning unfiltered results |
 
-When Codex sessions are displayed, the picker UI will surface a note about the missing cwd filter so the result set is not mistaken for a narrower scope.
+When Codex sessions are displayed, the picker UI will surface a note about the missing cwd filter so users know to drop the cwd argument to see any results.
 
 ---
 

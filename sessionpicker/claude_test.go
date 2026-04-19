@@ -157,6 +157,30 @@ func TestClaudePickerList_LocalSmoke(t *testing.T) {
 	}
 }
 
+func TestIsClaudeCommandWrapper(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"slash command opens with known tag", "<command-name>/clear</command-name>", true},
+		{"local command caveat envelope", "<local-command-caveat>Caveat: ...</local-command-caveat>", true},
+		{"command-message wrapper", "<command-message>clear</command-message>", true},
+		{"leading whitespace still matched", "  \n<command-name>/help</command-name>", true},
+		{"plain zh-tw prompt should not match", "幫我重構這個 function", false},
+		{"angle bracket prompt without known tag", "<p>this is html-like content, not a wrapper</p>", false},
+		{"casual mention of command-name in prose", "I used <command-name> as a tag but this is a prompt", false},
+		{"empty content", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isClaudeCommandWrapper(tc.in); got != tc.want {
+				t.Errorf("isClaudeCommandWrapper(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEncodeClaudeCWD(t *testing.T) {
 	cases := map[string]string{
 		"/Users/me/proj":       "-Users-me-proj",

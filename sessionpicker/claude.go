@@ -256,21 +256,31 @@ func decodeClaudeContent(raw json.RawMessage) string {
 	return ""
 }
 
-// isClaudeCommandWrapper recognises the <command-name> / <local-command-caveat>
-// etc. envelopes Claude Code emits when the user invoked a slash command
-// — not interesting as a session title.
+// claudeCommandWrapperPrefixes lists the opening tags Claude Code emits
+// around user content when a slash command or local command was used.
+// These envelopes are not meaningful titles and are skipped by the
+// picker. New wrappers can be added here without touching call sites.
+var claudeCommandWrapperPrefixes = []string{
+	"<command-name>",
+	"<command-message>",
+	"<command-args>",
+	"<local-command-caveat>",
+	"<local-command-stdout>",
+	"<local-command-stderr>",
+}
+
+// isClaudeCommandWrapper reports whether text is a slash/local command
+// envelope rather than a real user prompt. Detection is by exact
+// opening tag at the start of the trimmed content — a free-form prompt
+// that merely mentions "command-name" somewhere inside is not a wrapper.
 func isClaudeCommandWrapper(text string) bool {
 	t := strings.TrimSpace(text)
-	if !strings.HasPrefix(t, "<") {
-		return false
+	for _, prefix := range claudeCommandWrapperPrefixes {
+		if strings.HasPrefix(t, prefix) {
+			return true
+		}
 	}
-	head := t
-	if len(head) > 80 {
-		head = head[:80]
-	}
-	return strings.Contains(head, "command-name") ||
-		strings.Contains(head, "command-message") ||
-		strings.Contains(head, "local-command-caveat")
+	return false
 }
 
 // truncateRunes trims s to at most n runes without cutting a multi-byte

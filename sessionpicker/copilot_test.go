@@ -26,6 +26,7 @@ func TestCopilotPickerList_YAMLOverridesEvents(t *testing.T) {
 		"session-aaaa-0001": time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
 		"session-bbbb-0002": time.Date(2026, 4, 17, 9, 0, 0, 0, time.UTC),
 		"session-cccc-0003": time.Date(2026, 4, 16, 8, 0, 0, 0, time.UTC),
+		"session-dddd-0004": time.Date(2026, 4, 10, 5, 0, 0, 0, time.UTC),
 	})
 
 	p := NewCopilotPicker(base)
@@ -33,8 +34,8 @@ func TestCopilotPickerList_YAMLOverridesEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(sessions) != 3 {
-		t.Fatalf("want 3 sessions, got %d: %+v", len(sessions), sessions)
+	if len(sessions) != 4 {
+		t.Fatalf("want 4 sessions, got %d: %+v", len(sessions), sessions)
 	}
 
 	var aaaa Session
@@ -76,6 +77,25 @@ func TestCopilotPickerList_FallbackToEvents(t *testing.T) {
 	}
 	if bbbb.CWD != "/home/test/proj-copilot" {
 		t.Errorf("cwd from bbbb = %q", bbbb.CWD)
+	}
+}
+
+func TestCopilotPickerList_CreatedAtFallback(t *testing.T) {
+	// session-dddd's yaml has only created_at, no updated_at — the
+	// picker should use created_at instead of the dir mtime because
+	// the yaml timestamp is more authoritative than fs metadata.
+	p := NewCopilotPicker("testdata/copilot")
+	sessions, err := p.List("/home/test/proj-created-only", 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("want 1 session for proj-created-only, got %d", len(sessions))
+	}
+	s := sessions[0]
+	want := time.Date(2026, 4, 10, 5, 0, 0, 0, time.UTC)
+	if !s.UpdatedAt.Equal(want) {
+		t.Errorf("UpdatedAt = %v, want created_at %v", s.UpdatedAt, want)
 	}
 }
 
