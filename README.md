@@ -1,5 +1,9 @@
 # Quill
 
+[![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue?logo=docker)](https://github.com/neilkuan/quill/pkgs/container/quill)
+
 [繁體中文](README-zh-tw.md) | English
 
 A lightweight, secure, cloud-native **ACP (Agent Client Protocol) bridge** that connects **Discord**, **Telegram**, and **Microsoft Teams** with any ACP-compatible coding CLI — [Kiro CLI](https://kiro.dev), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), [GitHub Copilot CLI](https://github.com/github/copilot-cli), and more.
@@ -34,7 +38,9 @@ Supports Kiro CLI, Claude Code, Codex, GitHub Copilot CLI, and any ACP-compatibl
 | `kiro` (default) | Kiro CLI | Native `kiro-cli acp` | `kiro-cli login --use-device-flow` |
 | `codex` | Codex | [@zed-industries/codex-acp](https://github.com/zed-industries/codex-acp) | `codex login --device-auth` |
 | `claude` | Claude Code | [@agentclientprotocol/claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp) | `claude auth login` or `claude setup-token` |
-| `copilot` ⚠️ | GitHub Copilot CLI | Native `copilot --acp --stdio` | `gh auth login -p https -w` (requires paid Copilot subscription; ACP support in public preview) |
+| `copilot` ⚠️ | GitHub Copilot CLI | Native `copilot --acp --stdio` | `gh auth login -p https -w` |
+
+> ⚠️ **copilot**: Requires a paid GitHub Copilot subscription. ACP support is currently in public preview — behavior may change.
 
 ---
 
