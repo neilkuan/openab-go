@@ -101,9 +101,12 @@ func (c *CodexPicker) List(cwd string, limit int) ([]Session, error) {
 		if e.SessionID == "" {
 			continue
 		}
+		// Peel off quill's sender_context envelope so the title is the
+		// user's actual prompt rather than the JSON metadata header.
+		cleanText := stripQuillEnvelope(e.Text)
 		a, ok := bySession[e.SessionID]
 		if !ok {
-			a = &agg{firstTS: e.TS, lastTS: e.TS, title: e.Text}
+			a = &agg{firstTS: e.TS, lastTS: e.TS, title: cleanText}
 			bySession[e.SessionID] = a
 		}
 		a.msgCount++
@@ -114,7 +117,7 @@ func (c *CodexPicker) List(cwd string, limit int) ([]Session, error) {
 		// been edited or rewritten out of order.
 		if e.TS < a.firstTS {
 			a.firstTS = e.TS
-			a.title = e.Text
+			a.title = cleanText
 		}
 		if e.TS > a.lastTS {
 			a.lastTS = e.TS

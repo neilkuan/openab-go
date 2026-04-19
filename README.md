@@ -228,6 +228,7 @@ Commands are registered as native platform commands — Discord Slash Commands a
 | `/reset` | Kill current session (new one on next message) |
 | `/resume` | Attempt to restore a previous session for this thread |
 | `/stop` | Interrupt the agent's current reply (session kept alive). `cancel` is an alias. On Discord, tapping the 🛑 reaction on a streaming message has the same effect. |
+| `/pick` | Browse and load historical agent sessions. Without args, lists recent sessions scoped to the current cwd. `/pick <N>` loads the Nth entry from the previous listing. `/pick load <id>` loads by session ID. `/pick all` skips the cwd filter. `history`, `session-picker`, `session_picker`, and `sessionpicker` are legacy aliases. |
 
 ###### HTTP API (Optional)
 
@@ -251,9 +252,9 @@ listen = ":8080"
 - **TTL cleanup** — idle sessions are cleaned up after `session_ttl_hours` (default: 24h)
 - **Per-session stats** — created time, last active, message count
 
-###### Session History (upcoming `/session-picker`)
+###### Session History (`/pick`)
 
-A `/session-picker` command is being built so users can browse and resume an agent's historical sessions directly from chat. The picker reads each agent's on-disk session store — the agent process does not need to be running:
+The `/pick` command lets users browse and resume an agent's historical sessions directly from chat. The picker reads each agent's on-disk session store — the agent process does not need to be running:
 
 | Agent | Session storage | cwd filter |
 |---|---|---|

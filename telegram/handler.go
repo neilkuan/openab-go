@@ -20,6 +20,7 @@ import (
 	"github.com/neilkuan/quill/config"
 	"github.com/neilkuan/quill/markdown"
 	"github.com/neilkuan/quill/platform"
+	"github.com/neilkuan/quill/sessionpicker"
 	"github.com/neilkuan/quill/stt"
 	"github.com/neilkuan/quill/tts"
 )
@@ -39,7 +40,10 @@ type Handler struct {
 	// MarkdownTableMode controls how GFM tables in agent replies are rewritten
 	// before being sent to Telegram. See markdown.TableMode for options.
 	MarkdownTableMode markdown.TableMode
-	botUser           *models.User
+	// Picker lists historical sessions for /pick. Nil when
+	// the configured agent backend is not recognised by sessionpicker.Detect.
+	Picker  sessionpicker.Picker
+	botUser *models.User
 }
 
 func (h *Handler) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -413,6 +417,9 @@ func (h *Handler) handleCommand(ctx context.Context, b *bot.Bot, chatID int64, t
 	case command.CmdStop:
 		sessionKey := buildSessionKeyFromChat(chatID, threadID)
 		response = command.ExecuteStop(h.Pool, sessionKey)
+	case command.CmdPicker:
+		sessionKey := buildSessionKeyFromChat(chatID, threadID)
+		response = command.ExecutePicker(h.Pool, h.Picker, sessionKey, cmd.Args, h.Pool.WorkingDir())
 	default:
 		return
 	}
@@ -734,6 +741,10 @@ func buildSessionKeyFromChat(chatID int64, threadID int) string {
 
 // extractCommand returns the bot command name (without /) if the message starts
 // with a /command entity, or empty string otherwise.
+// extractCommand returns the command and any trailing args exactly as
+// ParseCommand expects (e.g. "pick 3"). It strips the leading slash
+// and any `@botname` suffix from the command, then appends whatever
+// text follows the entity so numeric or string arguments are preserved.
 func extractCommand(msg *models.Message) string {
 	for _, e := range msg.Entities {
 		if e.Type == models.MessageEntityTypeBotCommand && e.Offset == 0 {
@@ -744,6 +755,10 @@ func extractCommand(msg *models.Message) string {
 			// Remove @botname suffix (e.g., "reset@mybot" → "reset")
 			if idx := strings.Index(cmd, "@"); idx != -1 {
 				cmd = cmd[:idx]
+			}
+			rest := strings.TrimLeft(msg.Text[e.Offset+e.Length:], " \t")
+			if rest != "" {
+				return cmd + " " + rest
 			}
 			return cmd
 		}
