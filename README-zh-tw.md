@@ -50,6 +50,45 @@
 
 ---
 
+##### 架構
+
+```
+  _________________                ___________________________                 ______________
+ |                 |    訊息      |                           |   JSON-RPC    |              |
+ |    Discord      |------------->|     Platform Adapter      |<------------->|  ACP Agent   |
+ |    Telegram     |<-------------|   (handler | reactions)   |     stdio     |  (子程序)    |
+ |   MS Teams      |    回覆      |             |             |               |              |
+ |_________________|              |             v             |               |   kiro-cli   |
+                                  |   command.ParseCommand    |               |   claude-acp |
+                                  |  sessions | info | reset  |               |   codex-acp  |
+                                  |  resume   | stop (cancel) |               |   copilot    |
+                                  |             |             |               |______________|
+                                  |             v             |
+                                  |       SessionPool         |
+                                  |  LRU | TTL | 每 thread 一 |
+                                  |             |             |
+                                  |             v             |
+                                  |      AcpConnection        |
+                                  |  prompt | cancel | 看門狗 |
+                                  |___________________________|
+                                        |                |
+                                 選配   |                |   選配
+                                        v                v
+                                  _____________     _____________
+                                 |             |   |             |
+                                 |   STT/TTS   |   |  HTTP API   |
+                                 |  (Whisper | |   | (session 監 |
+                                 |   OpenAI |  |   |  控 & 健檢) |
+                                 |   Gemini)   |   |_____________|
+                                 |_____________|
+```
+
+**資料流（文字說明）**：使用者訊息 → platform adapter → command parser（slash / 純文字）→ SessionPool（每個 thread key 一個 AcpConnection）→ JSON-RPC over stdio → agent CLI 子程序。串流回覆循同一路徑逆向返回，每 1.5-2 秒寫回原本的 bot 訊息。
+
+**Cancel 路徑**：使用者 `/stop` 或 🛑 reaction → `AcpConnection.SessionCancel()` 於獨立 goroutine 送 `session/cancel` notification（不鎖 promptMu）。Agent 回 `stopReason="cancelled"`；若 agent 沒實作 cancel，10 秒 watchdog 會自行合成同樣的 response，串流永遠不會卡死。
+
+---
+
 ##### 快速開始
 
 ```bash

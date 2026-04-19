@@ -50,6 +50,45 @@ Supports Kiro CLI, Claude Code, Codex, GitHub Copilot CLI, and any ACP-compatibl
 
 ---
 
+##### Architecture
+
+```
+  _________________                ___________________________                 ______________
+ |                 |   message    |                           |   JSON-RPC    |              |
+ |    Discord      |------------->|     Platform Adapter      |<------------->|  ACP Agent   |
+ |    Telegram     |<-------------|   (handler | reactions)   |     stdio     |  (subprocess)|
+ |   MS Teams      |   reply      |             |             |               |              |
+ |_________________|              |             v             |               |   kiro-cli   |
+                                  |   command.ParseCommand    |               |   claude-acp |
+                                  |  sessions | info | reset  |               |   codex-acp  |
+                                  |  resume   | stop (cancel) |               |   copilot    |
+                                  |             |             |               |______________|
+                                  |             v             |
+                                  |       SessionPool         |
+                                  |   LRU | TTL | per-thread  |
+                                  |             |             |
+                                  |             v             |
+                                  |      AcpConnection        |
+                                  |   prompt | cancel | wd    |
+                                  |___________________________|
+                                        |                |
+                              optional  |                |  optional
+                                        v                v
+                                  _____________     _____________
+                                 |             |   |             |
+                                 |   STT/TTS   |   |  HTTP API   |
+                                 |  (Whisper | |   |  (sessions |
+                                 |   OpenAI |  |   |   health)   |
+                                 |   Gemini)   |   |_____________|
+                                 |_____________|
+```
+
+**Data flow (text)**: user message -> platform adapter -> command parser (slash / text) -> SessionPool (one AcpConnection per thread key) -> JSON-RPC over stdio -> agent CLI subprocess. Streamed notifications flow back the same way, edited into the originating bot message every 1.5-2s.
+
+**Cancel path**: user `/stop` or 🛑 reaction -> `AcpConnection.SessionCancel()` sends a `session/cancel` notification on a goroutine distinct from the prompt (no promptMu). Agent replies with `stopReason="cancelled"`; if the agent ignores cancel, a 10s watchdog synthesizes the same response so the stream never hangs.
+
+---
+
 ##### Quick Start
 
 ```bash
