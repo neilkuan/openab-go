@@ -266,6 +266,19 @@ listen = ":8080"
 - **TTL 清理** — 閒置超過 `session_ttl_hours`（預設 24 小時）的 session 會被清理
 - **逐 session 統計** — 建立時間、最後活動時間、訊息數
 
+###### Session 歷史紀錄（開發中的 `/session-picker`）
+
+規劃中的 `/session-picker` 指令讓使用者能直接在聊天平台瀏覽並恢復 agent 的歷史 session。Picker 直接讀取 agent 寫在本機的 session 檔，agent 程序不需要在線：
+
+| Agent | Session 儲存位置 | cwd 過濾 |
+|---|---|---|
+| Kiro CLI | `~/.kiro/sessions/cli/<uuid>.{json,jsonl}` | ✅ |
+| Claude Code | `~/.claude/projects/<encoded-cwd>/<uuid>.jsonl` | ✅ |
+| GitHub Copilot CLI | `~/.copilot/session-state/<uuid>/`（`workspace.yaml` + `events.jsonl`） | ✅（best-effort 從 `workspace.yaml` 讀） |
+| Codex | `~/.codex/history.jsonl`（扁平索引） | ❌ — Codex history 的每一筆沒有 cwd 欄位。傳入非空 cwd 時 `List` 回空 slice，不會回傳未過濾的結果 |
+
+顯示 Codex session 時，picker UI 會提示「該 agent 不支援 cwd 過濾」，讓使用者知道需要改用空 cwd 才能看到結果。
+
 ---
 
 ##### 平台比較
