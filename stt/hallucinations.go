@@ -1,12 +1,16 @@
 package stt
 
-import "strings"
+import (
+	"log/slog"
+	"regexp"
+	"strings"
+)
 
-// knownHallucinations are phrases the Whisper model frequently produces when
-// the audio is silent, noisy, or truncated. They originate from YouTube-style
+// rawHallucinations are phrases the Whisper model frequently produces on
+// silent, noisy, or truncated audio. They originate from YouTube-style
 // captions in Whisper's training data rather than real speech.
 // Reference: https://github.com/openai/whisper/discussions/928
-var knownHallucinations = []string{
+var rawHallucinations = []string{
 	// Chinese (Traditional / Simplified)
 	"字幕由Amara.org社區提供",
 	"字幕由 Amara.org 社區提供",
@@ -24,30 +28,65 @@ var knownHallucinations = []string{
 	"字幕志愿者",
 
 	// English
-	"Thanks for watching!",
-	"Thanks for watching.",
-	"Thank you for watching!",
-	"Thank you for watching.",
+	"Thanks for watching",
+	"Thank you for watching",
 	"Please subscribe to my channel",
 
 	// Japanese
-	"ご視聴ありがとうございました。",
 	"ご視聴ありがとうございました",
 	"ご視聴ありがとうございます",
 
 	// Korean
-	"시청해주셔서 감사합니다.",
 	"시청해주셔서 감사합니다",
 	"MBC 뉴스",
 }
 
+// hallucinationMatchers are compiled once at package init from rawHallucinations.
+// The slice is not exported and never mutated after initialization.
+var hallucinationMatchers = compileHallucinations(rawHallucinations)
+
+// compileHallucinations builds a matcher per phrase. ASCII-letter-starting
+// phrases (English) are compiled with (?i) for case-insensitivity, \b word
+// boundaries, and anchored to end-of-utterance — these phrases can plausibly
+// occur mid-sentence in real speech, so we only strip them at the tail where
+// Whisper actually emits hallucinations. CJK phrases are matched literally
+// anywhere because they are specific enough that any occurrence is a
+// hallucination; word boundaries don't apply to CJK text.
+func compileHallucinations(phrases []string) []*regexp.Regexp {
+	out := make([]*regexp.Regexp, 0, len(phrases))
+	for _, p := range phrases {
+		base := regexp.QuoteMeta(p)
+		var pattern string
+		if startsWithASCIILetter(p) {
+			pattern = `(?i)\b` + base + `\b[!.?…]*\s*$`
+		} else {
+			pattern = base + `[！。？!.?…]*`
+		}
+		out = append(out, regexp.MustCompile(pattern))
+	}
+	return out
+}
+
+func startsWithASCIILetter(s string) bool {
+	if s == "" {
+		return false
+	}
+	b := s[0]
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
 // filterHallucinations strips known Whisper hallucination phrases from the
-// transcribed text and trims surrounding whitespace. If the original text is
-// entirely composed of hallucinations, the returned string will be empty.
+// transcribed text and trims surrounding whitespace. Returns the cleaned text;
+// if the original is entirely composed of hallucinations the result is empty.
+// Logs a debug entry when filtering actually changed the text.
 func filterHallucinations(text string) string {
 	cleaned := text
-	for _, phrase := range knownHallucinations {
-		cleaned = strings.ReplaceAll(cleaned, phrase, "")
+	for _, re := range hallucinationMatchers {
+		cleaned = re.ReplaceAllString(cleaned, "")
 	}
-	return strings.TrimSpace(cleaned)
+	cleaned = strings.TrimSpace(cleaned)
+	if cleaned != strings.TrimSpace(text) {
+		slog.Debug("🎙️ stt: filtered hallucination", "before", text, "after", cleaned)
+	}
+	return cleaned
 }

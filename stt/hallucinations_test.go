@@ -44,8 +44,28 @@ func TestFilterHallucinations(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "strips English Thanks for watching lowercase",
+			in:   "thanks for watching!",
+			want: "",
+		},
+		{
+			name: "strips English Thanks for watching uppercase",
+			in:   "THANKS FOR WATCHING!",
+			want: "",
+		},
+		{
+			name: "strips English Thanks for watching with period",
+			in:   "Thanks for watching.",
+			want: "",
+		},
+		{
 			name: "strips Japanese closing phrase",
 			in:   "ご視聴ありがとうございました",
+			want: "",
+		},
+		{
+			name: "strips Japanese closing phrase with period",
+			in:   "ご視聴ありがとうございました。",
 			want: "",
 		},
 		{
@@ -67,6 +87,21 @@ func TestFilterHallucinations(t *testing.T) {
 			name: "trims surrounding whitespace",
 			in:   "   hello world   ",
 			want: "hello world",
+		},
+		{
+			name: "does not strip English phrase embedded in real speech",
+			in:   "I want to thank you for watching my channel and learn more",
+			want: "I want to thank you for watching my channel and learn more",
+		},
+		{
+			name: "does not strip subscribe phrase when more speech follows",
+			in:   "Please subscribe to my channel everyone it helps a lot",
+			want: "Please subscribe to my channel everyone it helps a lot",
+		},
+		{
+			name: "does not strip partial English match at end",
+			in:   "I love watching",
+			want: "I love watching",
 		},
 	}
 
