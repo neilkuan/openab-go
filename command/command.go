@@ -17,7 +17,7 @@ const (
 	CmdResume   = "resume"
 	CmdInfo     = "info"
 	CmdStop     = "stop"
-	CmdPicker   = "session-picker"
+	CmdPicker   = "pick"
 )
 
 type Command struct {
@@ -38,12 +38,12 @@ func ParseCommand(text string) (*Command, bool) {
 	if name == "cancel" {
 		name = CmdStop
 	}
-	// "history" / "pick" are aliases for "session-picker", for people
-	// who prefer a shorter phrase at the chat prompt.
-	// "session_picker" is the Telegram-friendly spelling — Telegram's
-	// SetMyCommands rejects hyphens (name must match ^[a-z][a-z0-9_]{0,31}$),
-	// so the /-menu entry uses an underscore and we normalise here.
-	if name == "history" || name == "pick" || name == "session_picker" {
+	// Aliases for the session picker. Canonical is `pick` — short,
+	// memorable, and valid across Discord / Telegram / Teams (Telegram
+	// enforces ^[a-z][a-z0-9_]{0,31}$ for SetMyCommands, which rules
+	// out hyphens and camelCase). The remaining names are typing
+	// conveniences for users coming from older docs.
+	if name == "history" || name == "sessionpicker" || name == "session-picker" || name == "session_picker" {
 		name = CmdPicker
 	}
 	known := map[string]bool{
@@ -181,8 +181,8 @@ func ExecuteStop(pool *acp.SessionPool, threadKey string) string {
 }
 
 // pickerListLimit is the default number of sessions to show when a
-// user asks /session-picker without an argument. Keeps the chat
-// response short and picks a comfortable index range for /session-picker <N>.
+// user asks /pick without an argument. Keeps the chat
+// response short and picks a comfortable index range for /pick <N>.
 const pickerListLimit = 10
 
 // pickerListMaxAll raises the cap when the user explicitly passes
@@ -206,7 +206,7 @@ var (
 )
 
 // cachePickerListing stores the most recent listing for a thread so a
-// follow-up /session-picker <N> can resolve the numeric index.
+// follow-up /pick <N> can resolve the numeric index.
 func cachePickerListing(threadKey string, sessions []sessionpicker.Session) {
 	pickerCacheMu.Lock()
 	defer pickerCacheMu.Unlock()
@@ -227,17 +227,17 @@ func getPickerListing(threadKey string) ([]sessionpicker.Session, bool) {
 	return e.sessions, true
 }
 
-// ExecutePicker handles /session-picker for a chat thread. args is
+// ExecutePicker handles /pick for a chat thread. args is
 // the trimmed argument string after the command name; cwdFilter is
 // usually the agent pool's working_dir so the default listing stays
 // scoped to the current project.
 //
 // Supported shapes:
 //
-//	/session-picker              → list up to 10 sessions matching cwdFilter
-//	/session-picker all          → list up to 20 sessions across all cwds
-//	/session-picker <N>          → load session at index N from the last listing
-//	/session-picker load <id>    → load the session with that exact ID
+//	/pick              → list up to 10 sessions matching cwdFilter
+//	/pick all          → list up to 20 sessions across all cwds
+//	/pick <N>          → load session at index N from the last listing
+//	/pick load <id>    → load the session with that exact ID
 //
 // When picker is nil (agent backend unsupported), a friendly message
 // is returned without touching the pool.
@@ -259,7 +259,7 @@ func ExecutePicker(pool *acp.SessionPool, picker sessionpicker.Picker, threadKey
 		if n, err := strconv.Atoi(args); err == nil {
 			return pickerLoadByIndex(pool, threadKey, n)
 		}
-		return "Usage: `/session-picker` | `/session-picker <N>` | `/session-picker load <session-id>` | `/session-picker all`"
+		return "Usage: `/pick` | `/pick <N>` | `/pick load <session-id>` | `/pick all`"
 	}
 }
 
@@ -281,7 +281,7 @@ func pickerListResponse(picker sessionpicker.Picker, threadKey, cwd string, limi
 
 	if len(sessions) == 0 {
 		if !bypassCWD && cwd != "" {
-			sb.WriteString("\nNo sessions match this cwd. Try `/session-picker all` — some agents (e.g. Codex) do not record cwd.")
+			sb.WriteString("\nNo sessions match this cwd. Try `/pick all` — some agents (e.g. Codex) do not record cwd.")
 		} else {
 			sb.WriteString("\nNo sessions found.")
 		}
@@ -295,13 +295,13 @@ func pickerListResponse(picker sessionpicker.Picker, threadKey, cwd string, limi
 		sb.WriteByte('\n')
 		sb.WriteString(formatPickerRow(i+1, s))
 	}
-	sb.WriteString("\n\nPick with `/session-picker <N>` or `/session-picker load <session-id>`.")
+	sb.WriteString("\n\nPick with `/pick <N>` or `/pick load <session-id>`.")
 	return sb.String()
 }
 
 // formatPickerRow renders one listing line. Session IDs are shown
 // truncated to the first chunk so the line stays readable; the full
-// ID remains available via `/session-picker load <full-id>`.
+// ID remains available via `/pick load <full-id>`.
 func formatPickerRow(n int, s sessionpicker.Session) string {
 	id := s.ID
 	if len(id) > 13 {
@@ -325,7 +325,7 @@ func pickerLoadByIndex(pool *acp.SessionPool, threadKey string, n int) string {
 	}
 	sessions, ok := getPickerListing(threadKey)
 	if !ok {
-		return "No recent listing in this chat. Run `/session-picker` first."
+		return "No recent listing in this chat. Run `/pick` first."
 	}
 	if n > len(sessions) {
 		return fmt.Sprintf("Index %d is out of range — the last listing had %d entr(y|ies).", n, len(sessions))
@@ -337,7 +337,7 @@ func pickerLoadByIndex(pool *acp.SessionPool, threadKey string, n int) string {
 
 func pickerLoadByID(pool *acp.SessionPool, picker sessionpicker.Picker, threadKey, id string) string {
 	if id == "" {
-		return "Usage: `/session-picker load <session-id>`"
+		return "Usage: `/pick load <session-id>`"
 	}
 	// Look up the session's cwd when possible so the new agent process
 	// loads with the original working directory. If we cannot find it

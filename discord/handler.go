@@ -38,7 +38,7 @@ type Handler struct {
 	// MarkdownTableMode controls how GFM tables in agent replies are rewritten
 	// before being sent to Discord. See markdown.TableMode for options.
 	MarkdownTableMode markdown.TableMode
-	// Picker lists historical sessions for /session-picker. Nil when
+	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
 	Picker sessionpicker.Picker
 
@@ -490,8 +490,8 @@ var slashCommands = []*discordgo.ApplicationCommand{
 		Description: "Interrupt the agent's current reply (session kept alive)",
 	},
 	{
-		Name:        "session-picker",
-		Description: "Browse and load historical agent sessions. Use `/session-picker <N>` or `/session-picker all`.",
+		Name:        "pick",
+		Description: "Browse and load historical agent sessions. Use `/pick <N>` or `/pick all`.",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,

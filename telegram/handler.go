@@ -40,7 +40,7 @@ type Handler struct {
 	// MarkdownTableMode controls how GFM tables in agent replies are rewritten
 	// before being sent to Telegram. See markdown.TableMode for options.
 	MarkdownTableMode markdown.TableMode
-	// Picker lists historical sessions for /session-picker. Nil when
+	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
 	Picker  sessionpicker.Picker
 	botUser *models.User

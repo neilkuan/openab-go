@@ -35,7 +35,7 @@ type Handler struct {
 	TTSConfig         config.TTSConfig
 	MarkdownTableMode markdown.TableMode
 	ToolDisplay       string
-	// Picker lists historical sessions for /session-picker. Nil when
+	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
 	Picker sessionpicker.Picker
 }

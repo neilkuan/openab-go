@@ -27,14 +27,15 @@ func TestParseCommand(t *testing.T) {
 		{"STOP", CmdStop, true},
 		{"cancel", CmdStop, true}, // alias → stop
 		{"CANCEL", CmdStop, true},
-		{"session-picker", CmdPicker, true},
-		{"Session-Picker", CmdPicker, true},
-		{"history", CmdPicker, true},         // alias → session-picker
-		{"pick", CmdPicker, true},            // alias → session-picker
-		{"session_picker", CmdPicker, true},  // Telegram-friendly spelling (no hyphen)
-		{"Session_Picker", CmdPicker, true},
-		{"pick 3", CmdPicker, true},       // alias with numeric arg
+		{"pick", CmdPicker, true},
+		{"Pick", CmdPicker, true},
+		{"pick 3", CmdPicker, true},           // canonical with numeric arg
+		{"history", CmdPicker, true},          // alias → pick
 		{"history load abc", CmdPicker, true}, // alias with load subcommand
+		{"session-picker", CmdPicker, true},   // legacy alias for users typing the old form
+		{"Session-Picker", CmdPicker, true},
+		{"session_picker", CmdPicker, true},   // legacy alias (Telegram-friendly spelling)
+		{"sessionpicker", CmdPicker, true},    // legacy alias (single-word spelling)
 		{"sessions extra args", CmdSessions, true},
 		{"hello world", "", false},
 		{"", "", false},
@@ -170,8 +171,8 @@ func TestExecutePicker_EmptyListSuggestsAll(t *testing.T) {
 		sessions:  []sessionpicker.Session{{ID: "x", Title: "y", CWD: "/elsewhere", UpdatedAt: time.Now()}},
 	}
 	msg := ExecutePicker(nil, fake, "discord:chan-empty", "", "/no/match")
-	if !strings.Contains(msg, "/session-picker all") {
-		t.Errorf("expected hint about `/session-picker all`, got: %q", msg)
+	if !strings.Contains(msg, "/pick all") {
+		t.Errorf("expected hint about `/pick all`, got: %q", msg)
 	}
 }
 
