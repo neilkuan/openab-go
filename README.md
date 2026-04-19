@@ -77,7 +77,7 @@ Supports Kiro CLI, Claude Code, Codex, GitHub Copilot CLI, and any ACP-compatibl
                                   _____________     _____________
                                  |             |   |             |
                                  |   STT/TTS   |   |  HTTP API   |
-                                 |  (Whisper | |   |  (sessions |
+                                 |  (Whisper | |   |  (sessions  |
                                  |   OpenAI |  |   |   health)   |
                                  |   Gemini)   |   |_____________|
                                  |_____________|
