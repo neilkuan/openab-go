@@ -1,5 +1,9 @@
 # Quill
 
+[![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue?logo=docker)](https://github.com/neilkuan/quill/pkgs/container/quill)
+
 繁體中文 | [English](README.md)
 
 一個輕量、安全、雲原生的 **ACP（Agent Client Protocol）橋接器**，連接 **Discord**、**Telegram** 和 **Microsoft Teams** 與任何 ACP 相容的 coding CLI — [Kiro CLI](https://kiro.dev)、[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、[Codex](https://github.com/openai/codex)、[GitHub Copilot CLI](https://github.com/github/copilot-cli) 等。
@@ -34,7 +38,9 @@
 | `kiro`（預設） | Kiro CLI | 原生 `kiro-cli acp` | `kiro-cli login --use-device-flow` |
 | `codex` | Codex | [@zed-industries/codex-acp](https://github.com/zed-industries/codex-acp) | `codex login --device-auth` |
 | `claude` | Claude Code | [@agentclientprotocol/claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp) | `claude auth login` 或 `claude setup-token` |
-| `copilot` ⚠️ | GitHub Copilot CLI | 原生 `copilot --acp --stdio` | `gh auth login -p https -w`（需付費 Copilot 訂閱；ACP 支援為 public preview） |
+| `copilot` ⚠️ | GitHub Copilot CLI | 原生 `copilot --acp --stdio` | `gh auth login -p https -w` |
+
+> ⚠️ **copilot**：需付費 GitHub Copilot 訂閱。ACP 支援目前為 public preview — 行為可能會變動。
 
 ---
 
@@ -429,6 +435,6 @@ Release 遵循 **「測試過的就是要發布的」** 哲學，使用 `scripts
 
 ---
 
-##### 授權條款
+# 授權條款
 
 [MIT](LICENSE)
