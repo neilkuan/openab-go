@@ -265,14 +265,20 @@ func TestAcpConnection_SessionCancel_WatchdogFires(t *testing.T) {
 // synthetic cancelled response. Without this behavior the streaming
 // loop (which reads from notifyCh, not the pending channel) would hang.
 //
-// The test is deterministic: only one goroutine reads from notifyCh, so
-// the order is guaranteed — the filler is read first (from the buffer),
-// which frees a slot, which unblocks the watchdog's send, which then
-// puts the cancelled response into the slot the test reads next.
+// Synchronization is done via watchdogPreSendHook (fires exactly when
+// the watchdog is about to enter its blocking send) instead of a wall
+// sleep — makes the test independent of CI scheduler timing. Go channel
+// FIFO guarantees the filler is delivered before the subsequently-sent
+// cancelled response.
 func TestAcpConnection_SessionCancel_WatchdogBlocksBriefly(t *testing.T) {
 	origTimeout := cancelWatchdogTimeout
-	cancelWatchdogTimeout = 20 * time.Millisecond
+	cancelWatchdogTimeout = 10 * time.Millisecond
 	defer func() { cancelWatchdogTimeout = origTimeout }()
+
+	blocked := make(chan struct{})
+	origHook := watchdogPreSendHook
+	watchdogPreSendHook = func() { close(blocked) }
+	defer func() { watchdogPreSendHook = origHook }()
 
 	w := &fakeWriteCloser{}
 	// Notification channel with a tiny buffer, filled to capacity so the
@@ -299,20 +305,23 @@ func TestAcpConnection_SessionCancel_WatchdogBlocksBriefly(t *testing.T) {
 		t.Fatalf("SessionCancel returned error: %v", err)
 	}
 
-	// Let the watchdog fire and start blocking on its send.
-	time.Sleep(40 * time.Millisecond)
-
-	// First receive must get the filler (it was in the buffer first,
-	// and the watchdog's send is currently blocked behind a full
-	// buffer — Go delivers buffered items before handoff from blocked
-	// senders).
-	first := <-notifyCh
-	if StopReason(first) == "cancelled" {
-		t.Fatal("got cancelled before filler — test ordering assumption broken")
+	// Wait deterministically until the watchdog is about to enter its
+	// blocking send — no clock-based sleeps, no scheduler flakiness.
+	select {
+	case <-blocked:
+	case <-time.After(1 * time.Second):
+		t.Fatal("watchdog did not reach blocking send in time")
 	}
 
-	// With one slot now free, the watchdog's send unblocks and places
-	// the synthetic cancelled response into the buffer.
+	// First receive: the filler (inserted before the watchdog's send;
+	// Go channels are FIFO per the spec, "Channels act as first-in-
+	// first-out queues").
+	first := <-notifyCh
+	if StopReason(first) == "cancelled" {
+		t.Fatal("got cancelled before filler — channel FIFO broken")
+	}
+
+	// Second receive: the synthetic cancelled response, now unblocked.
 	select {
 	case m := <-notifyCh:
 		if StopReason(m) != "cancelled" {

@@ -411,6 +411,12 @@ func (c *AcpConnection) PromptDone() {
 // the prompt goroutine would block indefinitely on the pending channel.
 var cancelWatchdogTimeout = 10 * time.Second
 
+// watchdogPreSendHook is called (when non-nil) immediately before the
+// watchdog enters its blocking send on notifyCh. Intended for tests
+// that need to synchronize with the exact moment the watchdog is about
+// to block, instead of relying on wall-clock sleeps. Nil in production.
+var watchdogPreSendHook func()
+
 // SessionCancel sends a session/cancel notification to the agent.
 // This is a JSON-RPC notification (no id, no response); the agent stops
 // producing output for the active prompt and the pending session/prompt
@@ -505,6 +511,9 @@ func (c *AcpConnection) cancelWatchdog(pendingIDs []uint64, timeout time.Duratio
 		c.notifyMu.Lock()
 		target := c.notifyCh
 		if target != nil {
+			if watchdogPreSendHook != nil {
+				watchdogPreSendHook()
+			}
 			select {
 			case target <- msg:
 			case <-time.After(2 * time.Second):
