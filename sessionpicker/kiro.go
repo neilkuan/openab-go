@@ -1,6 +1,7 @@
 package sessionpicker
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -109,10 +110,101 @@ func loadKiroSession(path string) (Session, bool) {
 	if updated.IsZero() {
 		updated = f.CreatedAt
 	}
+
+	title := strings.TrimSpace(stripSenderContext(f.Title))
+	if looksLikeTruncatedSenderContext(f.Title) || title == "" {
+		// Kiro truncates the title to the first N characters of the
+		// stored prompt. When quill is the client, those first N chars
+		// are the sender_context envelope opening tag — useless as a
+		// title. Fall back to scanning the conversation stream.
+		if recovered, ok := recoverKiroTitleFromJSONL(strings.TrimSuffix(path, ".json") + ".jsonl"); ok {
+			title = recovered
+		}
+	}
+
 	return Session{
 		ID:        f.SessionID,
-		Title:     f.Title,
+		Title:     title,
 		CWD:       f.CWD,
 		UpdatedAt: updated,
 	}, true
+}
+
+// looksLikeTruncatedSenderContext catches cases where Kiro only stored
+// the opening tag or part of it (e.g. "<sender_con…") so the
+// stripSenderContext helper alone cannot recover a useful title.
+func looksLikeTruncatedSenderContext(s string) bool {
+	t := strings.TrimSpace(s)
+	if !strings.HasPrefix(t, "<") {
+		return false
+	}
+	// Literal prefix of the opening tag; anything shorter or starting
+	// with the same characters is still inside the envelope.
+	return strings.HasPrefix(t, "<sender_context") || strings.HasPrefix(t, "<sender_con")
+}
+
+// kiroJSONLScanLimit caps how many conversation-stream lines we read
+// while hunting for a usable title. The real user prompt is typically
+// the first Prompt event, so this is generous.
+const kiroJSONLScanLimit = 32
+
+// recoverKiroTitleFromJSONL reads the sibling <uuid>.jsonl file and
+// returns the first real user prompt (sender_context envelope removed,
+// trimmed to 50 runes). Returns ("", false) when no usable line is
+// found — the caller should then leave the title blank rather than
+// invent one.
+func recoverKiroTitleFromJSONL(jsonlPath string) (string, bool) {
+	file, err := os.Open(jsonlPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("kiro picker: open jsonl failed", "path", jsonlPath, "err", err)
+		}
+		return "", false
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+
+	type kiroJSONLEvent struct {
+		Kind string `json:"kind"`
+		Data struct {
+			Content []struct {
+				Kind string `json:"kind"`
+				Data string `json:"data"`
+			} `json:"content"`
+		} `json:"data"`
+	}
+
+	for i := 0; i < kiroJSONLScanLimit && scanner.Scan(); i++ {
+		var ev kiroJSONLEvent
+		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+			continue
+		}
+		if ev.Kind != "Prompt" {
+			continue
+		}
+		for _, c := range ev.Data.Content {
+			if c.Kind != "text" || c.Data == "" {
+				continue
+			}
+			text := strings.TrimSpace(stripSenderContext(c.Data))
+			if text == "" {
+				continue
+			}
+			return truncateKiroTitle(text), true
+		}
+	}
+	return "", false
+}
+
+// truncateKiroTitle shortens text to 50 runes, appending an ellipsis
+// when it was cut. Matches the convention the other pickers use.
+func truncateKiroTitle(s string) string {
+	const max = 50
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max]) + "..."
 }

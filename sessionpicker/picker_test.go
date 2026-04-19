@@ -140,6 +140,49 @@ func TestKiroPickerList_LocalSmoke(t *testing.T) {
 	}
 }
 
+func TestStripSenderContext(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"<sender_context>\n{\"schema\":\"quill.sender.v1\"}\n</sender_context>\n\nhello", "hello"},
+		{"<sender_context></sender_context>hi", "hi"},
+		{"  \n<sender_context>meta</sender_context>\n\nactual prompt", "actual prompt"},
+		{"no envelope here", "no envelope here"},
+		{"<other_tag>content</other_tag>", "<other_tag>content</other_tag>"},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		if got := stripSenderContext(tc.in); got != tc.want {
+			t.Errorf("stripSenderContext(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestKiroPickerList_JSONLFallbackForSenderContextTitle(t *testing.T) {
+	// cccc's .json title was stored as "<sender_context>" (Kiro
+	// truncated the prompt to the opening tag); the loader should
+	// fall back to the sibling .jsonl and recover the real prompt,
+	// minus the envelope.
+	p := NewKiroPicker("testdata/kiro")
+	sessions, err := p.List("/home/test/proj-a", 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var ccc Session
+	for _, s := range sessions {
+		if s.ID == "cccccccc-0000-0000-0000-000000000003" {
+			ccc = s
+			break
+		}
+	}
+	if ccc.ID == "" {
+		t.Fatal("cccc session should still be listed")
+	}
+	if ccc.Title != "幫我看一下這個 issue" {
+		t.Errorf("title = %q, want real user text recovered from jsonl", ccc.Title)
+	}
+}
+
 func TestKiroPickerList_Metadata(t *testing.T) {
 	p := NewKiroPicker("testdata/kiro")
 	sessions, err := p.List("/home/test/proj-b", 0)

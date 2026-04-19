@@ -227,7 +227,15 @@ func extractClaudeTitle(ev claudeEvent) string {
 	if isClaudeCommandWrapper(text) {
 		return ""
 	}
-	return truncateRunes(strings.TrimSpace(text), 50)
+	// Peel off quill's `<sender_context>...</sender_context>` preamble
+	// so titles reflect what the user typed, not the metadata envelope
+	// quill prepends to every prompt.
+	text = stripSenderContext(text)
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	return truncateRunes(text, 50)
 }
 
 // decodeClaudeContent handles both shapes Claude writes: a plain string,

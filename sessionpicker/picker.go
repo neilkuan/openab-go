@@ -8,8 +8,35 @@ package sessionpicker
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+// stripSenderContext removes the `<sender_context>...</sender_context>`
+// envelope that quill injects ahead of every user prompt (see the
+// `quill.sender.v1` schema documented in CLAUDE.md). Without this,
+// agents that naïvely truncate the first prompt to build a session
+// title end up saving "<sender_context>" as the title of every quill
+// session, which is useless to show in a picker.
+//
+// The function is conservative: if the envelope is not at the very
+// start of the string, the input is returned unchanged. This keeps
+// genuine user messages that happen to mention `<sender_context>` in
+// the middle of their text untouched.
+func stripSenderContext(s string) string {
+	const open = "<sender_context>"
+	const close = "</sender_context>"
+	t := strings.TrimLeft(s, " \t\r\n")
+	if !strings.HasPrefix(t, open) {
+		return s
+	}
+	end := strings.Index(t, close)
+	if end < 0 {
+		return s
+	}
+	rest := t[end+len(close):]
+	return strings.TrimLeft(rest, " \t\r\n")
+}
 
 // Session is the minimal metadata needed to render a picker row and
 // later resume via AcpConnection.SessionLoad.

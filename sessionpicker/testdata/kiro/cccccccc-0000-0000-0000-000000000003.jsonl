@@ -1,0 +1,1 @@
+{"version":"v1","kind":"Prompt","data":{"message_id":"m1","content":[{"kind":"text","data":"<sender_context>\n{\"channel\":\"telegram\",\"schema\":\"quill.sender.v1\",\"sender_name\":\"neilkuan\"}\n</sender_context>\n\n幫我看一下這個 issue"}],"meta":{"timestamp":1776592000}}}
