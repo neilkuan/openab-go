@@ -473,6 +473,11 @@ func (h *Handler) streamPrompt(
 		} else if cancelled {
 			finalContent = strings.TrimRight(finalContent, " \t\n") + "\n\n🛑 _— 已取消_"
 		}
+		// Append a mode/model footer so users know which persona and
+		// backend produced the reply without having to run /info.
+		_, mode := conn.Modes()
+		_, model := conn.Models()
+		finalContent += platform.FormatSessionFooter(mode, model)
 		// Rewrite GFM tables before splitting
 		finalContent = markdown.ConvertTables(finalContent, h.MarkdownTableMode)
 

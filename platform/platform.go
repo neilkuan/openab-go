@@ -162,6 +162,29 @@ func stripGenericStatusVerb(title string) (string, bool) {
 	return strings.TrimSpace(title[idx:]), true
 }
 
+// FormatSessionFooter returns a small italic footer showing the
+// session's current mode / model for appending to the agent's reply.
+// Returns empty string when both are blank, so callers can
+// unconditionally concatenate it.
+//
+// Platforms vary on markdown rendering, but all three supported here
+// (Discord, Telegram-HTML, Teams) treat `inline code` and `_italic_`
+// the same way so this single shape works everywhere. The leading
+// `\n\n` keeps the footer on its own line.
+func FormatSessionFooter(mode, model string) string {
+	var parts []string
+	if mode != "" {
+		parts = append(parts, "mode: `"+mode+"`")
+	}
+	if model != "" {
+		parts = append(parts, "model: `"+model+"`")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "\n\n— _" + strings.Join(parts, " · ") + "_"
+}
+
 // TruncateUTF8 truncates text to at most limit bytes without cutting multi-byte characters.
 // If truncated, appends the suffix (e.g. "…").
 func TruncateUTF8(text string, limit int, suffix string) string {

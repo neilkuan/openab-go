@@ -237,3 +237,37 @@ func TestTruncateUTF8_CJK(t *testing.T) {
 		t.Fatalf("result is not valid UTF-8: %q", result)
 	}
 }
+
+func TestFormatSessionFooter(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       string
+		model      string
+		wantSubstr []string
+		empty      bool
+	}{
+		{"both present", "朝比奈實玖瑠學姊", "claude-sonnet-4.6", []string{"mode", "朝比奈實玖瑠學姊", "model", "claude-sonnet-4.6", "·"}, false},
+		{"only mode", "ask", "", []string{"mode", "ask"}, false},
+		{"only model", "", "haiku", []string{"model", "haiku"}, false},
+		{"both empty", "", "", nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatSessionFooter(tt.mode, tt.model)
+			if tt.empty {
+				if got != "" {
+					t.Errorf("want empty footer, got %q", got)
+				}
+				return
+			}
+			if !strings.HasPrefix(got, "\n\n") {
+				t.Errorf("footer should start with double newline, got %q", got)
+			}
+			for _, s := range tt.wantSubstr {
+				if !strings.Contains(got, s) {
+					t.Errorf("missing %q in %q", s, got)
+				}
+			}
+		})
+	}
+}
