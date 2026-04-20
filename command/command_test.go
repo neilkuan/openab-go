@@ -199,8 +199,9 @@ func TestPickerCache_TTLExpiry(t *testing.T) {
 func TestFormatModeListing(t *testing.T) {
 	modes := []acp.ModeInfo{
 		{ID: "ask", Name: "Ask", Description: "Question only"},
-		{ID: "code", Name: "Code"}, // description optional
-		{ID: "bare"},                // name also optional — falls back to id
+		{ID: "code", Name: "Code"},  // description optional
+		{ID: "bare"},                // name optional — id shown once
+		{ID: "agent-x", Name: "agent-x"}, // name duplicates id (Kiro shape) — name suppressed
 	}
 	out := formatModeListing("code", modes)
 
@@ -215,7 +216,15 @@ func TestFormatModeListing(t *testing.T) {
 		t.Errorf("description missing: %s", out)
 	}
 	if !strings.Contains(out, "`bare`") {
-		t.Errorf("id fallback for name missing: %s", out)
+		t.Errorf("id row missing for bare entry: %s", out)
+	}
+	// For the Kiro-shape row (id == name), the id should appear once
+	// and the name should not be duplicated after an em dash.
+	if strings.Contains(out, "`agent-x` — agent-x") {
+		t.Errorf("name duplicating id should be suppressed: %s", out)
+	}
+	if !strings.Contains(out, "`agent-x`") {
+		t.Errorf("expected id for agent-x entry: %s", out)
 	}
 }
 

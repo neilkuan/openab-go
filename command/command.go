@@ -402,11 +402,14 @@ func formatModeListing(current string, available []acp.ModeInfo) string {
 		if m.ID == current {
 			marker = "➤ "
 		}
-		name := m.Name
-		if name == "" {
-			name = m.ID
+		sb.WriteString(fmt.Sprintf("%s`%d.` `%s`", marker, i+1, m.ID))
+		// Only render the name when it differs from the id — for agents
+		// like Kiro, name often equals id (e.g. both are the agent
+		// profile name), and showing "`foo` — foo" is just noise.
+		if m.Name != "" && m.Name != m.ID {
+			sb.WriteString(" — ")
+			sb.WriteString(m.Name)
 		}
-		sb.WriteString(fmt.Sprintf("%s`%d.` `%s` — %s", marker, i+1, m.ID, name))
 		if m.Description != "" {
 			sb.WriteString(" — ")
 			sb.WriteString(m.Description)

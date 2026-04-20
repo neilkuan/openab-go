@@ -105,9 +105,14 @@ func (h *Handler) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mes
 			cmdName = "voice-clear"
 		}
 		if cmd, ok := command.ParseCommand(cmdName); ok {
+			slog.Debug("telegram command dispatched",
+				"raw", cmdName, "name", cmd.Name, "args", cmd.Args,
+				"chat_id", chatID, "user_id", msg.From.ID)
 			h.handleCommand(ctx, b, chatID, threadID, msg, cmd)
 			return
 		}
+		slog.Debug("telegram text looked like a command but was not recognised",
+			"extracted", cmdName, "text", msg.Text, "chat_id", chatID)
 	}
 
 	isPrivate := msg.Chat.Type == models.ChatTypePrivate
@@ -831,12 +836,15 @@ func buildSessionKeyFromChat(chatID int64, threadID int) string {
 	return fmt.Sprintf("tg:%d", chatID)
 }
 
-// extractCommand returns the bot command name (without /) if the message starts
-// with a /command entity, or empty string otherwise.
 // extractCommand returns the command and any trailing args exactly as
 // ParseCommand expects (e.g. "pick 3"). It strips the leading slash
 // and any `@botname` suffix from the command, then appends whatever
-// text follows the entity so numeric or string arguments are preserved.
+// text follows so numeric or string arguments are preserved.
+//
+// Prefers the bot_command entity Telegram attaches to /commands, but
+// falls back to parsing msg.Text directly when no entity is present —
+// this happens in edge cases such as captions copied as text or
+// forwarded commands, and the fallback is cheap enough to always run.
 func extractCommand(msg *models.Message) string {
 	for _, e := range msg.Entities {
 		if e.Type == models.MessageEntityTypeBotCommand && e.Offset == 0 {
@@ -855,7 +863,31 @@ func extractCommand(msg *models.Message) string {
 			return cmd
 		}
 	}
-	return ""
+	// Fallback: text starts with `/` but Telegram did not attach a
+	// bot_command entity (observed for some clients / forwarded
+	// messages). Only the first whitespace-delimited token is treated
+	// as the command name, to keep shapes like "/mode ask" working.
+	text := strings.TrimLeft(msg.Text, " \t")
+	if !strings.HasPrefix(text, "/") {
+		return ""
+	}
+	text = text[1:]
+	head := text
+	rest := ""
+	if idx := strings.IndexAny(text, " \t"); idx != -1 {
+		head = text[:idx]
+		rest = strings.TrimLeft(text[idx:], " \t")
+	}
+	if idx := strings.Index(head, "@"); idx != -1 {
+		head = head[:idx]
+	}
+	if head == "" {
+		return ""
+	}
+	if rest != "" {
+		return head + " " + rest
+	}
+	return head
 }
 
 func isBotMentioned(msg *models.Message, botUsername string) bool {
