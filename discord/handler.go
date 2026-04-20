@@ -501,7 +501,24 @@ var slashCommands = []*discordgo.ApplicationCommand{
 			},
 		},
 	},
+	{
+		Name:        "mode",
+		Description: "List or switch the session's agent mode. No args = interactive picker.",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "mode_id",
+				Description: "Mode id (or 1-based index from a previous listing). Omit to open the select menu.",
+				Required:    false,
+			},
+		},
+	},
 }
+
+// modeSelectCustomIDPrefix prefixes the CustomID of the <SelectMenu>
+// that the mode picker renders. The suffix is the threadKey so a
+// stale menu cannot route a selection to the wrong conversation.
+const modeSelectCustomIDPrefix = "mode-select:"
 
 func (h *Handler) registerSlashCommands(s *discordgo.Session, appID string) {
 	for _, cmd := range slashCommands {
@@ -514,10 +531,15 @@ func (h *Handler) registerSlashCommands(s *discordgo.Session, appID string) {
 }
 
 func (h *Handler) OnInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.Type != discordgo.InteractionApplicationCommand {
-		return
+	switch i.Type {
+	case discordgo.InteractionApplicationCommand:
+		h.handleSlashCommand(s, i)
+	case discordgo.InteractionMessageComponent:
+		h.handleComponentInteraction(s, i)
 	}
+}
 
+func (h *Handler) handleSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
 	userID := ""
 	if i.Member != nil {
@@ -525,8 +547,15 @@ func (h *Handler) OnInteractionCreate(s *discordgo.Session, i *discordgo.Interac
 	} else if i.User != nil {
 		userID = i.User.ID
 	}
-	var response string
 
+	// Mode is special: with no argument we respond with an interactive
+	// SelectMenu instead of plain text, so it gets its own branch.
+	if data.Name == command.CmdMode {
+		h.handleModeSlash(s, i, data)
+		return
+	}
+
+	var response string
 	switch data.Name {
 	case command.CmdSessions:
 		response = command.ExecuteSessions(h.Pool)
@@ -560,6 +589,97 @@ func (h *Handler) OnInteractionCreate(s *discordgo.Session, i *discordgo.Interac
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: response,
+		},
+	})
+}
+
+// handleModeSlash responds to /mode. With an explicit mode_id the
+// switch happens inline and we reply with the confirmation text. With
+// no argument we send a SelectMenu listing every advertised mode so
+// the user can tap to pick one.
+func (h *Handler) handleModeSlash(s *discordgo.Session, i *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) {
+	threadKey := buildSessionKey(i.ChannelID)
+
+	arg := ""
+	for _, opt := range data.Options {
+		if opt.Name == "mode_id" {
+			arg = strings.TrimSpace(opt.StringValue())
+			break
+		}
+	}
+
+	if arg != "" {
+		msg := command.ExecuteMode(h.Pool, threadKey, arg)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{Content: msg},
+		})
+		return
+	}
+
+	listing := command.ListModes(h.Pool, threadKey)
+	if listing.Err != nil || len(listing.Available) == 0 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{Content: listing.Message},
+		})
+		return
+	}
+
+	options := make([]discordgo.SelectMenuOption, 0, len(listing.Available))
+	for _, m := range listing.Available {
+		label := m.Name
+		if label == "" {
+			label = m.ID
+		}
+		options = append(options, discordgo.SelectMenuOption{
+			Label:       label,
+			Value:       m.ID,
+			Description: m.Description,
+			Default:     m.ID == listing.Current,
+		})
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("**Select a mode** (current: `%s`)", listing.Current),
+			Flags:   discordgo.MessageFlagsEphemeral,
+			Components: []discordgo.MessageComponent{
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.SelectMenu{
+							CustomID:    modeSelectCustomIDPrefix + threadKey,
+							Placeholder: "Pick a mode",
+							MinValues:   intPtr(1),
+							MaxValues:   1,
+							Options:     options,
+						},
+					},
+				},
+			},
+		},
+	})
+}
+
+func intPtr(v int) *int { return &v }
+
+func (h *Handler) handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.MessageComponentData()
+	if !strings.HasPrefix(data.CustomID, modeSelectCustomIDPrefix) {
+		return
+	}
+	threadKey := strings.TrimPrefix(data.CustomID, modeSelectCustomIDPrefix)
+	if len(data.Values) == 0 {
+		return
+	}
+	msg := command.ExecuteMode(h.Pool, threadKey, data.Values[0])
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Content:    msg,
+			Components: []discordgo.MessageComponent{}, // clear the menu so it cannot fire twice
+			Flags:      discordgo.MessageFlagsEphemeral,
 		},
 	})
 }

@@ -106,6 +106,7 @@ const (
 	AcpEventToolStart
 	AcpEventToolDone
 	AcpEventStatus
+	AcpEventModeUpdate
 )
 
 type AcpEvent struct {
@@ -113,6 +114,24 @@ type AcpEvent struct {
 	Text   string
 	Title  string
 	Status string
+	// ModeID is the new current mode id carried by a
+	// current_mode_update session notification.
+	ModeID string
+}
+
+// ModeInfo describes one entry of the `availableModes` array in an ACP
+// session setup response. `Description` is optional per spec.
+type ModeInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+// ModeSet mirrors the `modes` object returned by session/new and
+// session/load: which mode is active now, and what else is available.
+type ModeSet struct {
+	CurrentModeID  string     `json:"currentModeId"`
+	AvailableModes []ModeInfo `json:"availableModes"`
 }
 
 func ClassifyNotification(msg *JsonRpcMessage) *AcpEvent {
@@ -173,6 +192,27 @@ func ClassifyNotification(msg *JsonRpcMessage) *AcpEvent {
 
 	case "plan":
 		return &AcpEvent{Type: AcpEventStatus}
+
+	case "current_mode_update":
+		// Agent tells the client the session's active mode changed.
+		// The new id is wrapped in a nested object named either
+		// `currentMode` (per ACP spec) or flattened — accept both to
+		// stay robust across agents.
+		if raw, ok := update["currentModeId"]; ok {
+			var id string
+			if err := json.Unmarshal(raw, &id); err == nil && id != "" {
+				return &AcpEvent{Type: AcpEventModeUpdate, ModeID: id}
+			}
+		}
+		if raw, ok := update["currentMode"]; ok {
+			var inner struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(raw, &inner); err == nil && inner.ID != "" {
+				return &AcpEvent{Type: AcpEventModeUpdate, ModeID: inner.ID}
+			}
+		}
+		return nil
 
 	default:
 		return nil

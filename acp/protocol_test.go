@@ -140,6 +140,43 @@ func TestClassifyNotification_Plan(t *testing.T) {
 	}
 }
 
+func TestClassifyNotification_CurrentModeUpdate_FlatID(t *testing.T) {
+	// sessionUpdate == current_mode_update, with the new id flat at
+	// the same level (form used by some agents).
+	raw := json.RawMessage(`{"update":{"sessionUpdate":"current_mode_update","currentModeId":"code"}}`)
+	msg := &JsonRpcMessage{Params: &raw}
+	evt := ClassifyNotification(msg)
+	if evt == nil || evt.Type != AcpEventModeUpdate {
+		t.Fatalf("expected AcpEventModeUpdate, got %+v", evt)
+	}
+	if evt.ModeID != "code" {
+		t.Errorf("ModeID = %q, want 'code'", evt.ModeID)
+	}
+}
+
+func TestClassifyNotification_CurrentModeUpdate_NestedID(t *testing.T) {
+	// Some agents wrap the id in a currentMode object. The classifier
+	// accepts either.
+	raw := json.RawMessage(`{"update":{"sessionUpdate":"current_mode_update","currentMode":{"id":"ask","name":"Ask"}}}`)
+	msg := &JsonRpcMessage{Params: &raw}
+	evt := ClassifyNotification(msg)
+	if evt == nil || evt.Type != AcpEventModeUpdate {
+		t.Fatalf("expected AcpEventModeUpdate, got %+v", evt)
+	}
+	if evt.ModeID != "ask" {
+		t.Errorf("ModeID = %q, want 'ask'", evt.ModeID)
+	}
+}
+
+func TestClassifyNotification_CurrentModeUpdate_MissingID(t *testing.T) {
+	raw := json.RawMessage(`{"update":{"sessionUpdate":"current_mode_update"}}`)
+	msg := &JsonRpcMessage{Params: &raw}
+	evt := ClassifyNotification(msg)
+	if evt != nil {
+		t.Fatalf("expected nil when id is absent, got %+v", evt)
+	}
+}
+
 func TestClassifyNotification_UnknownType(t *testing.T) {
 	msg := makeNotification(t, "some_unknown_event", "", "")
 	evt := ClassifyNotification(msg)

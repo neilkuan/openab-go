@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/neilkuan/quill/acp"
 	"github.com/neilkuan/quill/sessionpicker"
 )
 
@@ -32,6 +33,10 @@ func TestParseCommand(t *testing.T) {
 		{"pick 3", CmdPicker, true},           // canonical with numeric arg
 		{"history", CmdPicker, true},          // alias → pick
 		{"history load abc", CmdPicker, true}, // alias with load subcommand
+		{"mode", CmdMode, true},
+		{"Mode", CmdMode, true},
+		{"mode ask", CmdMode, true},
+		{"mode 2", CmdMode, true},
 		{"session-picker", CmdPicker, true},   // legacy alias for users typing the old form
 		{"Session-Picker", CmdPicker, true},
 		{"session_picker", CmdPicker, true},   // legacy alias (Telegram-friendly spelling)
@@ -188,6 +193,49 @@ func TestPickerCache_TTLExpiry(t *testing.T) {
 
 	if _, ok := getPickerListing(thread); ok {
 		t.Error("expected expired cache entry to be absent")
+	}
+}
+
+func TestFormatModeListing(t *testing.T) {
+	modes := []acp.ModeInfo{
+		{ID: "ask", Name: "Ask", Description: "Question only"},
+		{ID: "code", Name: "Code"}, // description optional
+		{ID: "bare"},                // name also optional — falls back to id
+	}
+	out := formatModeListing("code", modes)
+
+	// Current mode marker, index, name/description all rendered.
+	if !strings.Contains(out, "➤") {
+		t.Error("current mode should be marked with an arrow")
+	}
+	if !strings.Contains(out, "`2.` `code`") {
+		t.Errorf("expected index marker for code entry: %s", out)
+	}
+	if !strings.Contains(out, "Question only") {
+		t.Errorf("description missing: %s", out)
+	}
+	if !strings.Contains(out, "`bare`") {
+		t.Errorf("id fallback for name missing: %s", out)
+	}
+}
+
+func TestIsKnownMode(t *testing.T) {
+	modes := []acp.ModeInfo{{ID: "ask"}, {ID: "code"}}
+	if !isKnownMode(modes, "ask") {
+		t.Error("ask should be known")
+	}
+	if isKnownMode(modes, "nope") {
+		t.Error("nope should not be known")
+	}
+	if isKnownMode(nil, "ask") {
+		t.Error("empty list: nothing is known")
+	}
+}
+
+func TestJoinModeIDs(t *testing.T) {
+	got := joinModeIDs([]acp.ModeInfo{{ID: "ask"}, {ID: "code"}})
+	if got != "`ask`, `code`" {
+		t.Errorf("joinModeIDs = %q", got)
 	}
 }
 

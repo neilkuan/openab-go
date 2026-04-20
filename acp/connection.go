@@ -36,6 +36,43 @@ type AcpConnection struct {
 	WasResumed     bool // true when session was restored via session/load (persistent, for /info)
 	CanLoadSession bool // true when agent advertises loadSession capability
 	alive          atomic.Bool
+
+	// modeMu guards AvailableModes and CurrentModeID so the read loop
+	// (which reacts to `current_mode_update` notifications) and the
+	// command/user goroutines (which set and render modes) do not race.
+	modeMu         sync.RWMutex
+	AvailableModes []ModeInfo
+	CurrentModeID  string
+}
+
+// Modes returns a copy of the session's currently advertised modes
+// and the id that is active right now. Safe for concurrent use.
+func (c *AcpConnection) Modes() (available []ModeInfo, current string) {
+	c.modeMu.RLock()
+	defer c.modeMu.RUnlock()
+	out := make([]ModeInfo, len(c.AvailableModes))
+	copy(out, c.AvailableModes)
+	return out, c.CurrentModeID
+}
+
+func (c *AcpConnection) setModeState(current string, available []ModeInfo) {
+	c.modeMu.Lock()
+	defer c.modeMu.Unlock()
+	if current != "" {
+		c.CurrentModeID = current
+	}
+	if available != nil {
+		c.AvailableModes = available
+	}
+}
+
+// SetCurrentMode records a mode change that arrived via a
+// `current_mode_update` notification. The available-modes list is
+// untouched because the notification payload only carries the new id.
+func (c *AcpConnection) SetCurrentMode(id string) {
+	c.modeMu.Lock()
+	defer c.modeMu.Unlock()
+	c.CurrentModeID = id
 }
 
 // GetLastActive returns the last activity time (safe for concurrent reads).
@@ -170,6 +207,16 @@ func (c *AcpConnection) readLoop(stdout io.Reader) {
 			}
 		}
 
+		// Track session-scoped mode changes before forwarding — the
+		// subscriber may or may not act on the notification, but the
+		// connection itself needs its CurrentModeID kept in sync so
+		// /info and /mode reflect the latest state regardless.
+		if msg.Method != nil && *msg.Method == "session/update" {
+			if ev := ClassifyNotification(&msg); ev != nil && ev.Type == AcpEventModeUpdate && ev.ModeID != "" {
+				c.SetCurrentMode(ev.ModeID)
+			}
+		}
+
 		// Notification → forward to subscriber
 		c.notifyMu.Lock()
 		if c.notifyCh != nil {
@@ -299,7 +346,8 @@ func (c *AcpConnection) SessionNew(cwd string) (string, error) {
 	}
 
 	var result struct {
-		SessionID string `json:"sessionId"`
+		SessionID string   `json:"sessionId"`
+		Modes     *ModeSet `json:"modes,omitempty"`
 	}
 	if err := json.Unmarshal(*resp.Result, &result); err != nil {
 		return "", err
@@ -310,7 +358,21 @@ func (c *AcpConnection) SessionNew(cwd string) (string, error) {
 
 	slog.Info("session created", "session_id", result.SessionID)
 	c.SessionID = result.SessionID
+	c.applyModeSet(result.Modes)
 	return result.SessionID, nil
+}
+
+// applyModeSet stashes whatever `modes` object the agent returned from
+// session/new or session/load. When the response omits the field (older
+// agents), the previous state is preserved.
+func (c *AcpConnection) applyModeSet(ms *ModeSet) {
+	if ms == nil {
+		return
+	}
+	c.setModeState(ms.CurrentModeID, ms.AvailableModes)
+	slog.Info("session modes advertised",
+		"current", ms.CurrentModeID,
+		"available_count", len(ms.AvailableModes))
 }
 
 // SessionLoad attempts to resume a previous session by ID.
@@ -340,6 +402,44 @@ func (c *AcpConnection) SessionLoad(sessionID string, cwd string) error {
 	c.SessionID = sessionID
 	c.SessionResumed = true
 	c.WasResumed = true
+
+	if resp.Result != nil {
+		var result struct {
+			Modes *ModeSet `json:"modes,omitempty"`
+		}
+		if err := json.Unmarshal(*resp.Result, &result); err == nil {
+			c.applyModeSet(result.Modes)
+		}
+	}
+	return nil
+}
+
+// SessionSetMode asks the agent to switch the current session to the
+// given mode. The agent is expected to emit a `current_mode_update`
+// session notification on success, which the read loop uses to keep
+// CurrentModeID in sync.
+func (c *AcpConnection) SessionSetMode(modeID string) error {
+	if c.SessionID == "" {
+		return fmt.Errorf("no active session")
+	}
+	if modeID == "" {
+		return fmt.Errorf("modeId is required")
+	}
+	resp, err := c.sendRequest("session/set_mode", map[string]interface{}{
+		"sessionId": c.SessionID,
+		"modeId":    modeID,
+	})
+	if err != nil {
+		return fmt.Errorf("session/set_mode failed: %w", err)
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("session/set_mode error: %s", resp.Error.Message)
+	}
+	// Optimistically reflect the change locally — if the agent also
+	// emits a `current_mode_update` notification, SetCurrentMode will
+	// run with the same id and be a no-op.
+	c.SetCurrentMode(modeID)
+	slog.Info("session mode switched", "session_id", c.SessionID, "mode_id", modeID)
 	return nil
 }
 

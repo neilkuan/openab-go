@@ -229,6 +229,7 @@ Commands are registered as native platform commands — Discord Slash Commands a
 | `/resume` | Attempt to restore a previous session for this thread |
 | `/stop` | Interrupt the agent's current reply (session kept alive). `cancel` is an alias. On Discord, tapping the 🛑 reaction on a streaming message has the same effect. |
 | `/pick` | Browse and load historical agent sessions. Without args, lists recent sessions scoped to the current cwd. `/pick <N>` loads the Nth entry from the previous listing. `/pick load <id>` loads by session ID. `/pick all` skips the cwd filter. `history`, `session-picker`, `session_picker`, and `sessionpicker` are legacy aliases. |
+| `/mode` | List or switch the session's agent mode (ACP `session/set_mode`). With no argument, Discord replies with a select menu and Telegram with an inline keyboard so users can tap to pick. `/mode <id>` or `/mode <N>` switches directly. Only works once an active session exists in the thread (send a message first if needed). Requires the agent to advertise a `modes` object during session setup. |
 
 ###### HTTP API (Optional)
 

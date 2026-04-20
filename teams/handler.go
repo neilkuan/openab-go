@@ -271,6 +271,11 @@ func (h *Handler) handleCommand(activity *Activity, cmd *command.Command) {
 		response = command.ExecuteStop(h.Pool, sessionKey)
 	case command.CmdPicker:
 		response = command.ExecutePicker(h.Pool, h.Picker, sessionKey, cmd.Args, h.Pool.WorkingDir())
+	case command.CmdMode:
+		// Teams is text-only: no native SelectMenu / InlineKeyboard
+		// hookup, so both `/mode` and `/mode <id>` fall back to the
+		// plain-text listing / switch path.
+		response = command.ExecuteMode(h.Pool, sessionKey, cmd.Args)
 	default:
 		return
 	}

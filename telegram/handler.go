@@ -47,6 +47,10 @@ type Handler struct {
 }
 
 func (h *Handler) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update.CallbackQuery != nil {
+		h.handleCallbackQuery(ctx, b, update.CallbackQuery)
+		return
+	}
 	if update.Message == nil {
 		return
 	}
@@ -420,6 +424,14 @@ func (h *Handler) handleCommand(ctx context.Context, b *bot.Bot, chatID int64, t
 	case command.CmdPicker:
 		sessionKey := buildSessionKeyFromChat(chatID, threadID)
 		response = command.ExecutePicker(h.Pool, h.Picker, sessionKey, cmd.Args, h.Pool.WorkingDir())
+	case command.CmdMode:
+		sessionKey := buildSessionKeyFromChat(chatID, threadID)
+		if strings.TrimSpace(cmd.Args) != "" {
+			response = command.ExecuteMode(h.Pool, sessionKey, cmd.Args)
+			break
+		}
+		h.sendModePicker(ctx, b, chatID, threadID, msg, sessionKey)
+		return
 	default:
 		return
 	}
@@ -445,6 +457,86 @@ func (h *Handler) handleCommand(ctx context.Context, b *bot.Bot, chatID int64, t
 				ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
 			})
 		}
+	}
+}
+
+// modeCallbackPrefix marks callback_data produced by the /mode inline
+// keyboard. Format: "mode|<sessionKey>|<modeID>". Session keys and
+// mode ids emitted by Kiro do not contain the `|` separator, and the
+// whole payload must fit into Telegram's 64-byte callback_data cap
+// (session key ~22 bytes + mode id ~20 bytes + prefix 5 = 47 typical).
+const modeCallbackPrefix = "mode|"
+
+// sendModePicker posts a message with an inline keyboard, one button
+// per available mode, so users can tap to switch instead of typing
+// `/mode <id>`. The current mode is marked with ➤ in the button label.
+func (h *Handler) sendModePicker(ctx context.Context, b *bot.Bot, chatID int64, threadID int, msg *models.Message, sessionKey string) {
+	listing := command.ListModes(h.Pool, sessionKey)
+	if listing.Err != nil || len(listing.Available) == 0 {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:          chatID,
+			MessageThreadID: threadID,
+			Text:            listing.Message,
+			ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		})
+		return
+	}
+
+	rows := make([][]models.InlineKeyboardButton, 0, len(listing.Available))
+	for _, m := range listing.Available {
+		label := m.Name
+		if label == "" {
+			label = m.ID
+		}
+		if m.ID == listing.Current {
+			label = "➤ " + label
+		}
+		rows = append(rows, []models.InlineKeyboardButton{{
+			Text:         label,
+			CallbackData: modeCallbackPrefix + sessionKey + "|" + m.ID,
+		}})
+	}
+
+	b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:          chatID,
+		MessageThreadID: threadID,
+		Text:            fmt.Sprintf("Select a mode (current: <code>%s</code>)", listing.Current),
+		ParseMode:       models.ParseModeHTML,
+		ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+	})
+}
+
+// handleCallbackQuery routes button taps from inline keyboards. Today
+// the only source is the /mode picker (prefix "mode|"); unknown
+// callback_data is acknowledged silently so the spinner on the
+// client clears without producing user-visible noise.
+func (h *Handler) handleCallbackQuery(ctx context.Context, b *bot.Bot, cq *models.CallbackQuery) {
+	data := cq.Data
+	// Always answer first, even on unrelated callbacks, otherwise the
+	// Telegram client keeps the loading spinner on the button.
+	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID})
+
+	if !strings.HasPrefix(data, modeCallbackPrefix) {
+		return
+	}
+	rest := strings.TrimPrefix(data, modeCallbackPrefix)
+	parts := strings.SplitN(rest, "|", 2)
+	if len(parts) != 2 {
+		return
+	}
+	sessionKey, modeID := parts[0], parts[1]
+	msg := command.ExecuteMode(h.Pool, sessionKey, modeID)
+
+	if cq.Message.Message != nil {
+		chatID := cq.Message.Message.Chat.ID
+		msgID := cq.Message.Message.ID
+		b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   msgID,
+			Text:        msg,
+			ReplyMarkup: nil, // drop the keyboard — prevents a second tap re-firing
+		})
 	}
 }
 
