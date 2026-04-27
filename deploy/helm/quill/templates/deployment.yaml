@@ -1,5 +1,6 @@
 {{- range $name, $inst := .Values.instances }}
 {{- if $inst.enabled }}
+{{- $b := merge (default (dict) $inst.backup) $.Values.backup }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -27,7 +28,69 @@ spec:
       annotations:
         checksum/config: {{ toJson $inst | sha256sum }}
     spec:
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 60
+      {{- if and $b.enabled (or (eq $b.auth.mode "irsa") (eq $b.auth.mode "podIdentity")) }}
+      serviceAccountName: {{ include "quill.fullname" $ }}-{{ $name }}
+      {{- end }}
+      {{- if $b.enabled }}
+      initContainers:
+        - name: s3-sync
+          image: "{{ $b.rclone.image }}:{{ $b.rclone.tag }}"
+          imagePullPolicy: {{ $b.rclone.pullPolicy }}
+          restartPolicy: Always
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              rclone copy "s3:${BUCKET}/${PREFIX}" /workdir --create-empty-src-dirs $EXTRA_ARGS || true
+              while true; do sleep 3600; done
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    set -eu
+                    rclone sync /workdir "s3:${BUCKET}/${PREFIX}" --create-empty-src-dirs $EXTRA_ARGS
+          env:
+            - name: BUCKET
+              value: {{ $b.s3.bucket | quote }}
+            - name: PREFIX
+              value: "{{ $b.s3.prefix }}/{{ $name }}"
+            - name: RCLONE_CONFIG_S3_TYPE
+              value: s3
+            - name: RCLONE_CONFIG_S3_PROVIDER
+              value: AWS
+            - name: RCLONE_CONFIG_S3_REGION
+              value: {{ $b.s3.region | quote }}
+            - name: RCLONE_CONFIG_S3_ENV_AUTH
+              value: "true"
+            {{- if $b.s3.endpoint }}
+            - name: RCLONE_CONFIG_S3_ENDPOINT
+              value: {{ $b.s3.endpoint | quote }}
+            {{- end }}
+            - name: EXTRA_ARGS
+              value: {{ join " " $b.rclone.extraArgs | quote }}
+            {{- if eq $b.auth.mode "secret" }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $b.auth.secret.existingSecret | default (printf "%s-%s-s3-creds" (include "quill.fullname" $) $name) }}
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $b.auth.secret.existingSecret | default (printf "%s-%s-s3-creds" (include "quill.fullname" $) $name) }}
+                  key: AWS_SECRET_ACCESS_KEY
+            {{- end }}
+          volumeMounts:
+            - name: workdir
+              mountPath: /workdir
+          resources:
+            {{- toYaml $b.resources | nindent 12 }}
+      {{- end }}
       containers:
         - name: quill
           image: "{{ $inst.image.repository }}:{{ $inst.image.tag | default $.Chart.AppVersion }}"
