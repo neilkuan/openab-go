@@ -328,10 +328,10 @@ After merge, on a real EKS cluster with `replicas: 1`:
 
 ## Definition of Done
 
-- [ ] `helm template` produces correct output for all four auth-mode scenarios.
-- [ ] `helm lint deploy/helm/quill` clean.
-- [ ] Chart `version` bumped (semver minor); `kubeVersion` reflects 1.28+.
-- [ ] `deploy/helm/quill/README.md` documents the feature, K8s constraint, and the three auth modes.
+- [x] `helm template` produces correct output for all four auth-mode scenarios.
+- [x] `helm lint deploy/helm/quill` clean.
+- [x] Chart `version` bumped (semver minor); `kubeVersion` reflects 1.28+.
+- [x] `deploy/helm/quill/README.md` documents the feature, K8s constraint, and the three auth modes.
 - [ ] Manual EKS verification: full restart cycle preserves `/pick` history.
 - [ ] Backup disabled by default; existing deployments unaffected after `helm upgrade`.
 
