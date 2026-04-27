@@ -38,10 +38,23 @@ type Handler struct {
 	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
 	Picker sessionpicker.Picker
+
+	// Test-only override hooks. When non-nil, replace the default
+	// dispatch so adapter-level routing tests don't have to spin up the
+	// full message pipeline.
+	invokeForTest      func()
+	messageForTest     func()
+	messageForTestFlag bool
 }
 
 // OnMessage handles incoming message activities from Teams
 func (h *Handler) OnMessage(activity *Activity) {
+	if h.messageForTest != nil {
+		h.messageForTestFlag = true
+		h.messageForTest()
+		return
+	}
+
 	if activity.From.ID == "" {
 		return
 	}
@@ -272,11 +285,26 @@ func (h *Handler) handleCommand(activity *Activity, cmd *command.Command) {
 	case command.CmdPicker:
 		response = command.ExecutePicker(h.Pool, h.Picker, sessionKey, cmd.Args, h.Pool.WorkingDir())
 	case command.CmdMode:
-		// Teams is text-only: no native SelectMenu / InlineKeyboard
-		// hookup, so both `/mode` and `/mode <id>` fall back to the
-		// plain-text listing / switch path.
+		if strings.TrimSpace(cmd.Args) == "" {
+			listing := command.ListModes(h.Pool, sessionKey)
+			if listing.Err == nil && len(listing.Available) > 0 {
+				h.sendModeCard(activity, sessionKey, listing)
+				return
+			}
+			response = listing.Message
+			break
+		}
 		response = command.ExecuteMode(h.Pool, sessionKey, cmd.Args)
 	case command.CmdModel:
+		if strings.TrimSpace(cmd.Args) == "" {
+			listing := command.ListModels(h.Pool, sessionKey)
+			if listing.Err == nil && len(listing.Available) > 0 {
+				h.sendModelCard(activity, sessionKey, listing)
+				return
+			}
+			response = listing.Message
+			break
+		}
 		response = command.ExecuteModel(h.Pool, sessionKey, cmd.Args)
 	case command.CmdHelp:
 		response = command.ExecuteHelp()
@@ -596,6 +624,30 @@ func (h *Handler) sendVoiceReply(serviceURL, conversationID, userID, text string
 	// so we would need to upload the file as an attachment.
 	// For now, we'll skip voice reply on Teams.
 	slog.Debug("voice reply synthesized but Teams voice support not yet implemented", "path", audioPath)
+}
+
+// sendModeCard sends an Adaptive Card with mode picker dropdown
+func (h *Handler) sendModeCard(activity *Activity, threadKey string, listing command.ModeListing) {
+	att := BuildModeCard(listing, threadKey)
+	resp := &Activity{
+		Type:        "message",
+		Attachments: []Attachment{att},
+	}
+	if _, err := h.Client.SendActivity(activity.ServiceURL, activity.Conversation.ID, resp); err != nil {
+		slog.Warn("teams: failed to send mode card", "error", err)
+	}
+}
+
+// sendModelCard sends an Adaptive Card with model picker dropdown
+func (h *Handler) sendModelCard(activity *Activity, threadKey string, listing command.ModelListing) {
+	att := BuildModelCard(listing, threadKey)
+	resp := &Activity{
+		Type:        "message",
+		Attachments: []Attachment{att},
+	}
+	if _, err := h.Client.SendActivity(activity.ServiceURL, activity.Conversation.ID, resp); err != nil {
+		slog.Warn("teams: failed to send model card", "error", err)
+	}
 }
 
 // buildVoiceInfo returns voice feature status
