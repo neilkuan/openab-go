@@ -72,6 +72,40 @@ instances:
   #       cpu: "1"
   #       memory: 512Mi
 
+# -- Optional S3 backup of agent.workingDir for session continuity.
+# Restores on pod start, syncs on graceful shutdown.
+# Requires Kubernetes 1.28+ (native sidecar containers).
+# Per-instance overrides via `instances.<name>.backup` merge over this default.
+backup:
+  enabled: false
+  s3:
+    bucket: ""
+    prefix: "quill"        # final S3 path: s3://{bucket}/{prefix}/{instance-name}
+    region: us-east-1
+    endpoint: ""           # optional, for MinIO / non-AWS S3-compatible
+  auth:
+    # mode: irsa | podIdentity | secret
+    mode: irsa
+    irsa:
+      roleArn: ""          # set when mode=irsa
+    podIdentity: {}        # No fields — association created out-of-band
+    secret:
+      existingSecret: ""   # name of pre-existing k8s Secret with AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
+      accessKeyID: ""      # used only when existingSecret is empty
+      secretAccessKey: ""
+  rclone:
+    image: rclone/rclone
+    tag: "1.66"
+    pullPolicy: IfNotPresent
+    extraArgs: []          # passed to both copy (restore) and sync (backup)
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
 # -- Shared settings
 pool:
   maxSessions: 10
