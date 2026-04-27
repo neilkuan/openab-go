@@ -135,3 +135,49 @@ func modeChoiceLabel(m acp.ModeInfo) string {
 	}
 	return m.ID
 }
+
+// BuildModelCard wraps a non-empty ModelListing into an Adaptive Card
+// dropdown. Symmetrical to BuildModeCard.
+func BuildModelCard(listing command.ModelListing, threadKey string) Attachment {
+	choices := make([]Choice, len(listing.Available))
+	for i, m := range listing.Available {
+		choices[i] = Choice{
+			Title: modelChoiceLabel(m),
+			Value: m.ID,
+		}
+	}
+	card := AdaptiveCard{
+		Type:    "AdaptiveCard",
+		Schema:  cardSchemaURL,
+		Version: cardVersion,
+		Body: []CardElement{
+			TextBlock{Type: "TextBlock", Text: "Switch LLM model", Weight: "Bolder", Size: "Medium"},
+			TextBlock{Type: "TextBlock", Text: fmt.Sprintf("Current: `%s`", listing.Current), IsSubtle: true, Wrap: true},
+			ChoiceSet{
+				Type:    "Input.ChoiceSet",
+				ID:      "model",
+				Style:   "compact",
+				Value:   listing.Current,
+				Choices: choices,
+			},
+		},
+		Actions: []CardAction{
+			SubmitAction{
+				Type:  "Action.Submit",
+				Title: "Switch",
+				Data: map[string]any{
+					"quill.action": actionSwitchModel,
+					"thread":       threadKey,
+				},
+			},
+		},
+	}
+	return AdaptiveCardAttachment(card)
+}
+
+func modelChoiceLabel(m acp.ModelInfo) string {
+	if m.Description != "" {
+		return fmt.Sprintf("%s — %s", m.ID, m.Description)
+	}
+	return m.ID
+}
