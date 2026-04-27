@@ -278,6 +278,8 @@ func (h *Handler) handleCommand(activity *Activity, cmd *command.Command) {
 		response = command.ExecuteMode(h.Pool, sessionKey, cmd.Args)
 	case command.CmdModel:
 		response = command.ExecuteModel(h.Pool, sessionKey, cmd.Args)
+	case command.CmdHelp:
+		response = command.ExecuteHelp()
 	default:
 		return
 	}

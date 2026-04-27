@@ -136,6 +136,7 @@ func (a *Adapter) Start() error {
 			{Command: "pick", Description: "Browse and load historical agent sessions"},
 			{Command: "mode", Description: "List or switch the session's agent mode"},
 			{Command: "model", Description: "List or switch the session's LLM model"},
+			{Command: "help", Description: "Show available commands"},
 		},
 	})
 	if err != nil {

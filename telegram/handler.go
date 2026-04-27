@@ -455,6 +455,8 @@ func (h *Handler) handleCommand(ctx context.Context, b *bot.Bot, chatID int64, t
 		}
 		h.sendModelPicker(ctx, b, chatID, threadID, msg, sessionKey)
 		return
+	case command.CmdHelp:
+		response = command.ExecuteHelp()
 	default:
 		return
 	}
