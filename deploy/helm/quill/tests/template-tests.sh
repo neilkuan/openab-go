@@ -60,5 +60,21 @@ grep -q '\-s3-creds' "$TMP/irsa.yaml" \
     && fail "scenario 2: IRSA mode should not render s3-creds Secret"
 pass "scenario 2: IRSA mode renders sidecar + SA + IRSA annotation"
 
+# Scenario 3: Pod Identity — sidecar + SA without IRSA annotation
+render "pod-identity" "$TESTS_DIR/values-pod-identity.yaml"
+grep -q 'name: s3-sync' "$TMP/pod-identity.yaml" \
+    || fail "scenario 3: sidecar missing"
+grep -q 'kind: ServiceAccount' "$TMP/pod-identity.yaml" \
+    || fail "scenario 3: ServiceAccount missing"
+grep -q 'eks.amazonaws.com/role-arn' "$TMP/pod-identity.yaml" \
+    && fail "scenario 3: Pod Identity mode should NOT render IRSA annotation"
+grep -q 'serviceAccountName: r-quill-kiro' "$TMP/pod-identity.yaml" \
+    || fail "scenario 3: pod missing serviceAccountName"
+grep -q 'name: AWS_ACCESS_KEY_ID' "$TMP/pod-identity.yaml" \
+    && fail "scenario 3: Pod Identity mode should not inject AWS_ACCESS_KEY_ID env"
+grep -q '\-s3-creds' "$TMP/pod-identity.yaml" \
+    && fail "scenario 3: Pod Identity mode should not render s3-creds Secret"
+pass "scenario 3: Pod Identity mode renders sidecar + bare SA"
+
 echo
 echo "All scenarios passed."
