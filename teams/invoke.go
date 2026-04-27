@@ -52,6 +52,11 @@ func UnmarshalInvokeData(activity *Activity) (InvokeData, error) {
 // Happy-path dispatch (calling command.ExecuteMode / ExecuteModel) is
 // added in the next task. This task wires the guard paths.
 func (h *Handler) OnInvokeAction(activity *Activity) {
+	if h.invokeForTest != nil {
+		h.invokeForTest()
+		return
+	}
+
 	data, err := UnmarshalInvokeData(activity)
 	if err != nil {
 		slog.Debug("teams: not an invoke activity", "error", err)

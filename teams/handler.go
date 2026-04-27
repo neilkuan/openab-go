@@ -38,10 +38,23 @@ type Handler struct {
 	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
 	Picker sessionpicker.Picker
+
+	// Test-only override hooks. When non-nil, replace the default
+	// dispatch so adapter-level routing tests don't have to spin up the
+	// full message pipeline.
+	invokeForTest      func()
+	messageForTest     func()
+	messageForTestFlag bool
 }
 
 // OnMessage handles incoming message activities from Teams
 func (h *Handler) OnMessage(activity *Activity) {
+	if h.messageForTest != nil {
+		h.messageForTestFlag = true
+		h.messageForTest()
+		return
+	}
+
 	if activity.From.ID == "" {
 		return
 	}
