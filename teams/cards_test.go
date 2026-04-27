@@ -150,3 +150,41 @@ func TestBuildModeCard_TwelveOptions_StillCompact(t *testing.T) {
 		t.Errorf("Choices = %d, want 12", len(cs.Choices))
 	}
 }
+
+func TestBuildModelCard_HappyPath(t *testing.T) {
+	listing := command.ModelListing{
+		Current: "claude-sonnet-4.6",
+		Available: []acp.ModelInfo{
+			{ID: "auto", Name: "auto", Description: "Models chosen by task"},
+			{ID: "claude-sonnet-4.6", Name: "claude-sonnet-4.6", Description: "Latest Claude Sonnet"},
+			{ID: "claude-opus-4.6", Name: "claude-opus-4.6"},
+		},
+	}
+
+	att := BuildModelCard(listing, "teams:a:abc")
+	card := att.Content.(AdaptiveCard)
+
+	var cs ChoiceSet
+	for _, el := range card.Body {
+		if c, ok := el.(ChoiceSet); ok {
+			cs = c
+		}
+	}
+	if cs.ID != "model" {
+		t.Errorf("ChoiceSet.ID = %q, want %q", cs.ID, "model")
+	}
+	if cs.Value != "claude-sonnet-4.6" {
+		t.Errorf("default = %q, want claude-sonnet-4.6", cs.Value)
+	}
+	if len(cs.Choices) != 3 {
+		t.Errorf("Choices = %d, want 3", len(cs.Choices))
+	}
+
+	submit := card.Actions[0].(SubmitAction)
+	if submit.Data["quill.action"] != "switch_model" {
+		t.Errorf(`Data["quill.action"] = %v, want "switch_model"`, submit.Data["quill.action"])
+	}
+	if submit.Data["thread"] != "teams:a:abc" {
+		t.Errorf(`Data["thread"] = %v, want "teams:a:abc"`, submit.Data["thread"])
+	}
+}
