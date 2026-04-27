@@ -48,6 +48,11 @@ func TestParseCommand(t *testing.T) {
 		{"sessions extra args", CmdSessions, true},
 		{"hello world", "", false},
 		{"", "", false},
+		{"help", CmdHelp, true},
+		{"Help", CmdHelp, true},
+		{"HELP", CmdHelp, true},
+		{"?", CmdHelp, true},        // alias → help
+		{"commands", CmdHelp, true}, // alias → help
 		{"   sessions   ", CmdSessions, true},
 		{"reset now", CmdReset, true},
 		{"session", "", false}, // not "sessions"
@@ -64,6 +69,18 @@ func TestParseCommand(t *testing.T) {
 		}
 		if ok && cmd.Name != tt.wantCmd {
 			t.Errorf("ParseCommand(%q): got name=%q, want %q", tt.input, cmd.Name, tt.wantCmd)
+		}
+	}
+}
+
+func TestExecuteHelp_ListsEverySupportedCommand(t *testing.T) {
+	out := ExecuteHelp()
+	for _, name := range []string{
+		CmdSessions, CmdInfo, CmdReset, CmdResume, CmdStop,
+		CmdPicker, CmdMode, CmdModel, CmdHelp,
+	} {
+		if !strings.Contains(out, "`"+name+"`") {
+			t.Errorf("ExecuteHelp output is missing command %q\n%s", name, out)
 		}
 	}
 }

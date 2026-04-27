@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.25/MicrosoftTeams.schema.json",
   "manifestVersion": "1.25",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "id": "{{MICROSOFT_APP_ID}}",
   "developer": {
     "name": "Quill",
@@ -30,8 +30,10 @@
         "team",
         "groupChat"
       ],
-      "supportsFiles": true,
       "isNotificationOnly": false,
+      "supportsCalling": false,
+      "supportsVideo": false,
+      "supportsFiles": true,
       "commandLists": [
         {
           "scopes": [
@@ -55,12 +57,38 @@
             {
               "title": "resume",
               "description": "Resume the last session"
+            },
+            {
+              "title": "stop",
+              "description": "Cancel the current reply"
+            },
+            {
+              "title": "pick",
+              "description": "Browse and resume historical sessions"
+            },
+            {
+              "title": "mode",
+              "description": "Switch agent mode"
+            },
+            {
+              "title": "model",
+              "description": "Switch LLM model"
+            },
+            {
+              "title": "help",
+              "description": "Show available commands"
             }
           ]
         }
       ]
     }
   ],
+  "defaultGroupCapability": {
+    "team": "bot",
+    "groupchat": "bot",
+    "meetings": "bot"
+  },
+  "supportsChannelFeatures": "tier1",
   "permissions": [
     "messageTeamMembers"
   ],

@@ -525,6 +525,10 @@ var slashCommands = []*discordgo.ApplicationCommand{
 			},
 		},
 	},
+	{
+		Name:        "help",
+		Description: "Show available commands",
+	},
 }
 
 // modeSelectCustomIDPrefix prefixes the CustomID of the <SelectMenu>
@@ -601,6 +605,8 @@ func (h *Handler) handleSlashCommand(s *discordgo.Session, i *discordgo.Interact
 	case command.CmdStop:
 		threadKey := buildSessionKey(i.ChannelID)
 		response = command.ExecuteStop(h.Pool, threadKey)
+	case command.CmdHelp:
+		response = command.ExecuteHelp()
 	default:
 		return
 	}

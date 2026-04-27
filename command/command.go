@@ -20,6 +20,7 @@ const (
 	CmdPicker   = "pick"
 	CmdMode     = "mode"
 	CmdModel    = "model"
+	CmdHelp     = "help"
 )
 
 type Command struct {
@@ -48,8 +49,14 @@ func ParseCommand(text string) (*Command, bool) {
 	if name == "history" || name == "sessionpicker" || name == "session-picker" || name == "session_picker" {
 		name = CmdPicker
 	}
+	// `?` and `commands` are aliases for /help — discoverability shortcuts
+	// for users in Teams channels where the manifest commandLists popup is
+	// not rendered (Microsoft only shows it in personal scope).
+	if name == "?" || name == "commands" {
+		name = CmdHelp
+	}
 	known := map[string]bool{
-		CmdSessions: true, CmdReset: true, CmdResume: true, CmdInfo: true, CmdStop: true, CmdPicker: true, CmdMode: true, CmdModel: true,
+		CmdSessions: true, CmdReset: true, CmdResume: true, CmdInfo: true, CmdStop: true, CmdPicker: true, CmdMode: true, CmdModel: true, CmdHelp: true,
 	}
 	if !known[name] {
 		return nil, false
@@ -60,6 +67,30 @@ func ParseCommand(text string) (*Command, bool) {
 		args = strings.Join(parts[1:], " ")
 	}
 	return &Command{Name: name, Args: args}, true
+}
+
+// ExecuteHelp returns a markdown summary of every supported bot
+// command. Used as a discoverability fallback in chat surfaces where
+// the platform does not render the manifest's command list — most
+// notably Microsoft Teams channels, where the suggestion side-panel
+// only fires in personal-scope chats.
+func ExecuteHelp() string {
+	var sb strings.Builder
+	sb.WriteString("👋 **Quill — available commands**\n\n")
+	sb.WriteString("Tag the bot (or DM it directly) and ask anything in plain language. ")
+	sb.WriteString("For session control, use the commands below — they work with or without a leading `/`.\n\n")
+	sb.WriteString("| Command | What it does |\n")
+	sb.WriteString("|---|---|\n")
+	sb.WriteString("| `sessions` | List all active agent sessions in the pool |\n")
+	sb.WriteString("| `info` | Show this chat's session details (agent, cwd, mode, model, STT/TTS) |\n")
+	sb.WriteString("| `reset` | Kill this chat's session — next message starts fresh |\n")
+	sb.WriteString("| `resume` | Restore the last session for this chat |\n")
+	sb.WriteString("| `stop` (or `cancel`) | Interrupt the agent's current reply, keep the session alive |\n")
+	sb.WriteString("| `pick` | Browse and resume historical sessions on disk |\n")
+	sb.WriteString("| `mode` | List or switch the session's agent mode (e.g. `mode <id>`) |\n")
+	sb.WriteString("| `model` | List or switch the session's LLM model (e.g. `model <id>`) |\n")
+	sb.WriteString("| `help` (or `?`) | Show this message |\n")
+	return sb.String()
 }
 
 // ExecuteSessions returns a formatted list of all active sessions.
