@@ -201,8 +201,8 @@ once via the fake client; we don't pursue 100% on rare HTTP paths.
 
 ### Definition of Done
 
-- [ ] `go build ./...`, `go vet ./...`, `go test ./... -count=1` all green.
-- [ ] `BuildModeCard` sample output passes `python3 -m json.tool`.
+- [x] `go build ./...`, `go vet ./...`, `go test ./... -count=1` all green.
+- [x] `BuildModeCard` sample output passes `python3 -m json.tool`.
 - [ ] Manual sideload verification (steps above) reproduced in personal
       chat, team channel, and private channel — all three flip the card
       to ✅ on Submit.
