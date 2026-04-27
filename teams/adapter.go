@@ -169,7 +169,11 @@ func handleActivity(w http.ResponseWriter, r *http.Request, handler *Handler) {
 
 	switch activity.Type {
 	case "message":
-		go handler.OnMessage(&activity)
+		if _, err := UnmarshalInvokeData(&activity); err == nil {
+			go handler.OnInvokeAction(&activity)
+		} else {
+			go handler.OnMessage(&activity)
+		}
 	case "conversationUpdate":
 		slog.Info("teams conversation update", "conversation", activity.Conversation.ID)
 	default:
