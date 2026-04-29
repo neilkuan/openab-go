@@ -29,22 +29,47 @@ spec:
         checksum/config: {{ toJson $inst | sha256sum }}
     spec:
       terminationGracePeriodSeconds: 60
+      {{- if $b.enabled }}
+      securityContext:
+        fsGroup: {{ $b.ownership.fsGroup }}
+      {{- end }}
       {{- if and $b.enabled (or (eq $b.auth.mode "irsa") (eq $b.auth.mode "podIdentity")) }}
       serviceAccountName: {{ include "quill.fullname" $ }}-{{ $name }}
       {{- end }}
       {{- if $b.enabled }}
       initContainers:
-        - name: s3-sync
+        - name: s3-restore
           image: "{{ $b.rclone.image }}:{{ $b.rclone.tag }}"
           imagePullPolicy: {{ $b.rclone.pullPolicy }}
-          restartPolicy: Always
+          securityContext:
+            runAsUser: {{ $b.ownership.runAsUser }}
+            runAsGroup: {{ $b.ownership.runAsGroup }}
+            runAsNonRoot: true
           command:
             - /bin/sh
             - -c
             - |
               set -eu
-              rclone copy "s3:${BUCKET}/${PREFIX}" /workdir --create-empty-src-dirs $EXTRA_ARGS || true
-              while true; do sleep 3600; done
+              rclone copy "s3:${BUCKET}/${PREFIX}" /workdir --create-empty-src-dirs $EXTRA_ARGS
+          env:
+            {{- include "quill.s3.envVars" (dict "ctx" $ "name" $name "b" $b) | nindent 12 }}
+          volumeMounts:
+            - name: workdir
+              mountPath: /workdir
+          resources:
+            {{- toYaml $b.resources | nindent 12 }}
+        - name: s3-backup
+          image: "{{ $b.rclone.image }}:{{ $b.rclone.tag }}"
+          imagePullPolicy: {{ $b.rclone.pullPolicy }}
+          restartPolicy: Always
+          securityContext:
+            runAsUser: {{ $b.ownership.runAsUser }}
+            runAsGroup: {{ $b.ownership.runAsGroup }}
+            runAsNonRoot: true
+          command:
+            - /bin/sh
+            - -c
+            - exec sleep infinity
           lifecycle:
             preStop:
               exec:
