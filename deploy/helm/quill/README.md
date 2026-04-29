@@ -100,6 +100,31 @@ The chart can opt-in to an S3-backed backup that:
   lost. Mitigate by sizing pod resources to avoid OOM and running on stable
   nodes.
 
+### File ownership
+
+The two rclone containers (`s3-restore` initContainer and `s3-backup` native
+sidecar) run as **UID:GID 1000:1000** by default — matching the runtime user
+in every built-in agent image (`agent` for kiro, `node` for claude/codex/copilot,
+both UID 1000). The pod also sets `securityContext.fsGroup: 1000` so the
+shared `emptyDir` is owned by GID 1000.
+
+This is what makes restore actually work: files arriving from S3 are owned
+by the same user the quill agent process runs as, so the agent can read
+them and write back into the same directory tree (e.g., SQLite locks on
+`data.sqlite3`).
+
+If you build a custom agent image that runs as a different user, override
+the defaults:
+
+```yaml
+backup:
+  enabled: true
+  ownership:
+    runAsUser: 2000
+    runAsGroup: 2000
+    fsGroup: 2000
+```
+
 ### IRSA (recommended for EKS)
 
 ```yaml
