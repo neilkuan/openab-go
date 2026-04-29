@@ -55,36 +55,7 @@ spec:
                     set -eu
                     rclone sync /workdir "s3:${BUCKET}/${PREFIX}" --create-empty-src-dirs $EXTRA_ARGS
           env:
-            - name: BUCKET
-              value: {{ $b.s3.bucket | quote }}
-            - name: PREFIX
-              value: "{{ $b.s3.prefix }}/{{ $name }}"
-            - name: RCLONE_CONFIG_S3_TYPE
-              value: s3
-            - name: RCLONE_CONFIG_S3_PROVIDER
-              value: AWS
-            - name: RCLONE_CONFIG_S3_REGION
-              value: {{ $b.s3.region | quote }}
-            - name: RCLONE_CONFIG_S3_ENV_AUTH
-              value: "true"
-            {{- if $b.s3.endpoint }}
-            - name: RCLONE_CONFIG_S3_ENDPOINT
-              value: {{ $b.s3.endpoint | quote }}
-            {{- end }}
-            - name: EXTRA_ARGS
-              value: {{ join " " $b.rclone.extraArgs | quote }}
-            {{- if eq $b.auth.mode "secret" }}
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $b.auth.secret.existingSecret | default (printf "%s-%s-s3-creds" (include "quill.fullname" $) $name) }}
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $b.auth.secret.existingSecret | default (printf "%s-%s-s3-creds" (include "quill.fullname" $) $name) }}
-                  key: AWS_SECRET_ACCESS_KEY
-            {{- end }}
+            {{- include "quill.s3.envVars" (dict "ctx" $ "name" $name "b" $b) | nindent 12 }}
           volumeMounts:
             - name: workdir
               mountPath: /workdir
