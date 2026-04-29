@@ -186,7 +186,13 @@ func (h *Handler) OnMessage(activity *Activity) {
 		}
 	}
 
-	// Build content blocks
+	// Build content blocks. Images go through the same `<attached_images>`
+	// text path Discord/Telegram use — the agent's read tool opens them by
+	// path. The earlier base64 ImageBlock path was reverted because
+	// kiro-cli v2.2.0 advertises promptCapabilities.image=true but exits
+	// silently when fed a base64 image block; downloadAttachment now
+	// guarantees a usable file extension so kiro's read tool with
+	// mode=Image can identify the format.
 	contentText := buildPromptContent(promptWithSender, imagePaths, []string{}, fileAttachments)
 	contentBlocks := []acp.ContentBlock{acp.TextBlock(contentText)}
 
@@ -736,6 +742,58 @@ func buildPromptContent(base string, imagePaths, transcriptions []string, files 
 
 // --- Attachment helpers ---
 
+// ensureFileExtension makes sure `path` has a usable file extension so
+// downstream agents (especially kiro-cli's read tool with mode=Image)
+// can recognize the file's format. Teams Bot Framework often delivers
+// inline mobile photos with `name=""` AND a missing/blank ContentType,
+// which leaves the downloaded file extensionless and unusable.
+//
+// Resolution order:
+//  1. If `path` already carries an extension, keep it.
+//  2. Try the content-type hint (image/jpeg → .jpg).
+//  3. Fall back to magic-byte sniffing via http.DetectContentType.
+//  4. Give up and return the original path — caller should still proceed
+//     because text/* and other unknown formats may still be useful.
+//
+// The on-disk file is renamed to `<path><ext>` when an extension is
+// inferred. The new path is returned (or the original on failure).
+func ensureFileExtension(path string, contentTypeHint string) (string, error) {
+	if filepath.Ext(path) != "" {
+		return path, nil
+	}
+
+	ext := extensionForContentType(contentTypeHint)
+	if ext == "" {
+		// Magic-byte sniff — read up to 512 bytes (DetectContentType limit).
+		f, err := os.Open(path)
+		if err != nil {
+			return path, err
+		}
+		head := make([]byte, 512)
+		n, _ := f.Read(head)
+		_ = f.Close()
+		if n > 0 {
+			detected := http.DetectContentType(head[:n])
+			if i := strings.Index(detected, ";"); i >= 0 {
+				detected = strings.TrimSpace(detected[:i])
+			}
+			ext = extensionForContentType(detected)
+		}
+	}
+
+	if ext == "" {
+		return path, nil
+	}
+
+	newPath := path + ext
+	if err := os.Rename(path, newPath); err != nil {
+		// Rename can fail (target exists, fs perms). Caller still gets a
+		// path that points at the downloaded bytes.
+		return path, err
+	}
+	return newPath, nil
+}
+
 func isImageContentType(contentType string) bool {
 	return strings.HasPrefix(contentType, "image/")
 }
@@ -907,5 +965,18 @@ func (h *Handler) downloadAttachment(att Attachment, tmpDir string) (string, err
 		return "", fmt.Errorf("attachment exceeds 25MB limit")
 	}
 
-	return filePath, nil
+	// Close before rename so Windows doesn't reject a held-open file. The
+	// outer `defer f.Close()` will be a no-op once Close already returned.
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+
+	finalPath, extErr := ensureFileExtension(filePath, att.ContentType)
+	if extErr != nil {
+		// Non-fatal — caller still has the bytes at filePath, but log so
+		// kiro/agent failures stemming from missing extension are visible.
+		slog.Debug("could not normalize attachment extension",
+			"path", filePath, "content_type", att.ContentType, "error", extErr)
+	}
+	return finalPath, nil
 }
