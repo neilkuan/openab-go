@@ -95,10 +95,42 @@ The chart can opt-in to an S3-backed backup that:
 - **`replicas: 1`** — the chart hard-codes this. The backup design assumes a
   single writer; running multiple replicas risks race conditions on
   `rclone sync`. Do not edit `templates/deployment.yaml` to scale up.
+- **`strategy: Recreate`** (auto-applied when backup enabled) — old pod
+  must terminate fully (running `preStop` rclone sync to upload current
+  state) before the new pod starts and runs its `s3-restore` initContainer.
+  `RollingUpdate` would create a race where the new pod restores from
+  S3 *before* the old pod's preStop has uploaded the latest state, and
+  the new pod ends up with stale (or empty) data. Brief downtime during
+  rollout (typically 10-30s for state sync) is the trade-off.
 - **Hard-crash trade-off** — OOMKill, node failure, or any abrupt termination
   bypasses `preStop`. State written since the last successful preStop is
   lost. Mitigate by sizing pod resources to avoid OOM and running on stable
   nodes.
+
+### File ownership
+
+The two rclone containers (`s3-restore` initContainer and `s3-backup` native
+sidecar) run as **UID:GID 1000:1000** by default — matching the runtime user
+in every built-in agent image (`agent` for kiro, `node` for claude/codex/copilot,
+both UID 1000). The pod also sets `securityContext.fsGroup: 1000` so the
+shared `emptyDir` is owned by GID 1000.
+
+This is what makes restore actually work: files arriving from S3 are owned
+by the same user the quill agent process runs as, so the agent can read
+them and write back into the same directory tree (e.g., SQLite locks on
+`data.sqlite3`).
+
+If you build a custom agent image that runs as a different user, override
+the defaults:
+
+```yaml
+backup:
+  enabled: true
+  ownership:
+    runAsUser: 2000
+    runAsGroup: 2000
+    fsGroup: 2000
+```
 
 ### IRSA (recommended for EKS)
 
