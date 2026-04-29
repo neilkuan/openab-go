@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/neilkuan/quill/acp"
 	"github.com/neilkuan/quill/command"
+	"github.com/neilkuan/quill/platform"
 )
 
 func TestStripBotMention(t *testing.T) {
@@ -284,5 +288,155 @@ func TestSendModelCard_BuildsAdaptiveCardAttachment(t *testing.T) {
 	att := cap.body.Attachments[0]
 	if att.ContentType != "application/vnd.microsoft.card.adaptive" {
 		t.Errorf("ContentType = %q", att.ContentType)
+	}
+}
+
+// jpegMagicBytes is a minimal valid JPEG header — enough for
+// http.DetectContentType to classify the file as image/jpeg.
+var jpegMagicBytes = []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00}
+
+// pngMagicBytes is the canonical PNG signature.
+var pngMagicBytes = []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A}
+
+// TestEnsureFileExtension covers the post-download filename fix that
+// keeps Discord/Telegram/Teams aligned: when the original attachment
+// metadata does not yield an extension (Teams Bot Framework often sends
+// `name=""` for inline mobile photos), we fall back to the content-type
+// hint, then to magic-byte sniffing. kiro-cli's `read` tool with
+// `mode=Image` rejects extensionless paths, so this is the difference
+// between "agent sees the image" and "agent says it cannot read the file".
+func TestEnsureFileExtension(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("already has extension is returned unchanged", func(t *testing.T) {
+		path := filepath.Join(dir, "photo.jpg")
+		if err := os.WriteFile(path, jpegMagicBytes, 0600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		got, err := ensureFileExtension(path, "image/jpeg")
+		if err != nil {
+			t.Fatalf("ensureFileExtension: %v", err)
+		}
+		if got != path {
+			t.Errorf("expected unchanged path, got %q", got)
+		}
+	})
+
+	t.Run("uses content-type hint when filename has no extension", func(t *testing.T) {
+		path := filepath.Join(dir, "no_ext_with_hint")
+		if err := os.WriteFile(path, jpegMagicBytes, 0600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		got, err := ensureFileExtension(path, "image/jpeg")
+		if err != nil {
+			t.Fatalf("ensureFileExtension: %v", err)
+		}
+		if !strings.HasSuffix(got, ".jpg") {
+			t.Errorf("expected .jpg suffix, got %q", got)
+		}
+		if _, statErr := os.Stat(got); statErr != nil {
+			t.Errorf("renamed file does not exist: %v", statErr)
+		}
+		if _, statErr := os.Stat(path); statErr == nil {
+			t.Error("original extensionless path still exists after rename")
+		}
+	})
+
+	t.Run("falls back to magic bytes when content-type is empty", func(t *testing.T) {
+		path := filepath.Join(dir, "no_ext_no_hint")
+		if err := os.WriteFile(path, pngMagicBytes, 0600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		got, err := ensureFileExtension(path, "")
+		if err != nil {
+			t.Fatalf("ensureFileExtension: %v", err)
+		}
+		if !strings.HasSuffix(got, ".png") {
+			t.Errorf("expected .png suffix from magic bytes, got %q", got)
+		}
+	})
+
+	t.Run("falls back to magic bytes when content-type is unknown", func(t *testing.T) {
+		path := filepath.Join(dir, "no_ext_bad_hint")
+		if err := os.WriteFile(path, jpegMagicBytes, 0600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		got, err := ensureFileExtension(path, "application/x-made-up")
+		if err != nil {
+			t.Fatalf("ensureFileExtension: %v", err)
+		}
+		if !strings.HasSuffix(got, ".jpg") {
+			t.Errorf("expected .jpg suffix from magic bytes, got %q", got)
+		}
+	})
+
+	t.Run("unknown binary falls through to runtime mime DB", func(t *testing.T) {
+		// http.DetectContentType returns application/octet-stream for binary
+		// payloads it cannot classify, and Go's mime package maps that to
+		// .bin — fine for agents like kiro which only need *some* extension
+		// to drive their read-tool routing. The contract: we always end up
+		// with an extension on a binary file, even if not the "right" one.
+		path := filepath.Join(dir, "totally_unknown_blob")
+		if err := os.WriteFile(path, []byte{0x00, 0x01, 0x02, 0x03, 0x00, 0x00, 0xAB, 0xCD}, 0600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		got, err := ensureFileExtension(path, "")
+		if err != nil {
+			t.Fatalf("ensureFileExtension: %v", err)
+		}
+		if filepath.Ext(got) == "" {
+			t.Errorf("expected some extension to be inferred for binary blob, got %q", got)
+		}
+	})
+}
+
+// TestBuildPromptContent_AttachedImagesBlock confirms the image-path text
+// format used by Discord/Telegram is reachable from Teams — i.e. once
+// imagePaths are passed in, the prompt embeds them as
+// `<attached_images>` so the agent can use its read tool.
+func TestBuildPromptContent_AttachedImagesBlock(t *testing.T) {
+	got := buildPromptContent(
+		"hello",
+		[]string{"/tmp/x/123_photo.jpg", "/tmp/x/124_b.png"},
+		nil,
+		nil,
+	)
+	if !strings.Contains(got, "<attached_images>") {
+		t.Errorf("expected <attached_images> block, got: %s", got)
+	}
+	if !strings.Contains(got, "/tmp/x/123_photo.jpg") || !strings.Contains(got, "/tmp/x/124_b.png") {
+		t.Errorf("expected both image paths in output, got: %s", got)
+	}
+	if !strings.Contains(got, "Please read and analyze") {
+		t.Errorf("expected agent instruction line, got: %s", got)
+	}
+}
+
+// TestBuildPromptContent_NoAttachments returns the prompt unmodified when
+// no images / files / transcriptions are present — guards against a
+// regression where an empty `<attached_images>` block leaks into plain
+// text replies.
+func TestBuildPromptContent_NoAttachments(t *testing.T) {
+	got := buildPromptContent("just text", nil, nil, nil)
+	if got != "just text" {
+		t.Errorf("expected plain prompt unchanged, got: %q", got)
+	}
+}
+
+// TestBuildPromptContent_FileBlockStillRendered — files use the shared
+// platform.FormatFileBlock; images going through the text-path must not
+// accidentally suppress that block.
+func TestBuildPromptContent_FileBlockStillRendered(t *testing.T) {
+	got := buildPromptContent(
+		"see file",
+		[]string{"/tmp/x/img.png"},
+		nil,
+		[]platform.FileAttachment{{Filename: "spec.pdf", LocalPath: "/tmp/x/spec.pdf"}},
+	)
+	if !strings.Contains(got, "/tmp/x/img.png") {
+		t.Errorf("expected image path, got: %s", got)
+	}
+	if !strings.Contains(got, "spec.pdf") {
+		t.Errorf("expected file block to mention spec.pdf, got: %s", got)
 	}
 }
