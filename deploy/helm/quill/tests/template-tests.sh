@@ -165,5 +165,17 @@ grep -q 'name: my-precreated-aws-creds' "$TMP/secret-existing.yaml" \
     || fail "scenario 5: secretKeyRef does not point at the existing Secret"
 pass "scenario 5: secret-existing mode references pre-existing Secret only"
 
+# Scenario 6: custom ownership — values override defaults
+render "custom-uid" "$TESTS_DIR/values-custom-uid.yaml"
+yq 'select(.kind == "Deployment").spec.template.spec.securityContext.fsGroup' "$TMP/custom-uid.yaml" | grep -q '^3000$' \
+    || fail "scenario 6: pod fsGroup should be 3000"
+for c in s3-restore s3-backup; do
+    uid=$(yq "select(.kind == \"Deployment\").spec.template.spec.initContainers[] | select(.name == \"$c\").securityContext.runAsUser" "$TMP/custom-uid.yaml")
+    gid=$(yq "select(.kind == \"Deployment\").spec.template.spec.initContainers[] | select(.name == \"$c\").securityContext.runAsGroup" "$TMP/custom-uid.yaml")
+    [[ "$uid" == "2000" ]] || fail "scenario 6: $c runAsUser should be 2000, got $uid"
+    [[ "$gid" == "3000" ]] || fail "scenario 6: $c runAsGroup should be 3000, got $gid"
+done
+pass "scenario 6: custom ownership values propagate to securityContext + fsGroup"
+
 echo
 echo "All scenarios passed."
