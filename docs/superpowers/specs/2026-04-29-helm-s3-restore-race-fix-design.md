@@ -30,6 +30,10 @@ pod restart.
 
 ## Root cause
 
+Two independent defects, both of which must be fixed for restore to work:
+
+### Defect 1 — startup race (no synchronous gate)
+
 Native sidecar startup ordering only guarantees that the sidecar **process
 has started** before the main container is admitted — it does **not** wait
 for the sidecar's entrypoint command to complete. The current sidecar
@@ -46,17 +50,48 @@ files. The Kiro agent boots, scans `/home/agent`, finds it empty (or
 partially populated), and reports no resumable sessions. Files arriving
 later are correct on disk but already missed by the agent's startup scan.
 
-Without a synchronous gate ("restore must finish before main starts"), this
-race is unfixable inside a single sidecar definition.
+### Defect 2 — file ownership mismatch
+
+The `rclone/rclone:1.66` image runs as **root (UID 0)** by default. Files
+written into the shared `emptyDir` by `rclone copy` end up owned by
+`root:root`. The quill main container runs as **UID 1000** in every
+Dockerfile variant (`agent` user in `Dockerfile`, `node` user in the three
+`Dockerfile.{claude,codex,copilot}` — both UID 1000). With files owned by
+root and mode `0644`, the agent process (UID 1000):
+
+- Can read most files (world-readable),
+- **Cannot** write to existing files (no write bit for `other`),
+- **Cannot** write into restored sub-directories (typically `0755 root`),
+- Fails to acquire SQLite locks on `data.sqlite3` (write attempt → EACCES).
+
+Result: even after a successful `rclone copy`, the agent treats the
+working directory as broken — file open errors during session-list scan
+look identical to "directory is empty" from the user's perspective.
+Defect 2 alone explains the observed symptom even when defect 1 is masked
+by lucky timing (small bucket, fast network).
+
+### Why these two defects compound
+
+The current single-sidecar layout has neither a synchronous gate (defect
+1) nor explicit ownership control (defect 2). The fix below addresses
+both: the new init-container layout closes the race, and explicit
+`securityContext` on the rclone containers + pod-level `fsGroup` ensures
+the restored files are owned by UID:GID 1000:1000 (matching the quill
+main container's runtime user), so the agent has full read/write access.
 
 ## Goals
 
 - Pod start → `/home/agent` is fully hydrated from S3 **before** the quill
   main container's process begins, every time.
+- Restored files are owned by **UID:GID 1000:1000** so the quill agent
+  process can read and write them without permission errors.
 - Pod terminates gracefully → unchanged from the 2026-04-27 design (preStop
   sync continues to work as today).
-- No change to `values.yaml` schema, auth modes, Dockerfile variants, or
-  the `replicas: 1` constraint.
+- Minimal `values.yaml` schema change: a new optional `backup.ownership`
+  block (with sensible 1000:1000 defaults) so non-1000 images can override.
+  Existing values files keep working with no changes.
+- Auth modes, Dockerfile variants, and the `replicas: 1` constraint
+  unchanged.
 - Disabled-by-default behaviour preserved (`backup.enabled=false` keeps the
   current single-emptyDir layout).
 
@@ -118,10 +153,44 @@ verbatim.
 
 ## Components
 
+### `deploy/helm/quill/values.yaml` — add `backup.ownership` block
+
+```yaml
+backup:
+  # ... existing fields unchanged ...
+  ownership:
+    # UID/GID rclone containers run as. Files restored from S3 are owned
+    # by these IDs, so they must match the UID/GID inside the quill main
+    # container. All four built-in agent images run as 1000:1000.
+    # Override only if you build a custom image with a different runtime user.
+    runAsUser: 1000
+    runAsGroup: 1000
+    # Pod-level fsGroup applied to the shared emptyDir volume. Kubernetes
+    # recursively chowns volume contents to GID at mount time and sets
+    # the SGID bit so subsequent files inherit the GID. Set to the same
+    # value as runAsGroup unless you have a specific reason to differ.
+    fsGroup: 1000
+```
+
 ### `deploy/helm/quill/templates/deployment.yaml`
 
-Replace the current single-`s3-sync` initContainer block with two entries.
-Both gated by the same `{{ if $b.enabled }}`.
+Replace the current single-`s3-sync` initContainer block with two entries
+(both gated by `{{ if $b.enabled }}`) and add a pod-level `securityContext`
+so `fsGroup` chown propagates to the shared `emptyDir`.
+
+**Pod-level securityContext** (only when `backup.enabled` — keeps the
+disabled path unchanged):
+
+```yaml
+spec:
+  template:
+    spec:
+      {{- if $b.enabled }}
+      securityContext:
+        fsGroup: {{ $b.ownership.fsGroup }}
+      {{- end }}
+      ...
+```
 
 **Container 1: `s3-restore`** (no `restartPolicy` field — plain init)
 
@@ -129,6 +198,10 @@ Both gated by the same `{{ if $b.enabled }}`.
 - name: s3-restore
   image: "{{ $b.rclone.image }}:{{ $b.rclone.tag }}"
   imagePullPolicy: {{ $b.rclone.pullPolicy }}
+  securityContext:
+    runAsUser: {{ $b.ownership.runAsUser }}
+    runAsGroup: {{ $b.ownership.runAsGroup }}
+    runAsNonRoot: true
   command:
     - /bin/sh
     - -c
@@ -136,6 +209,8 @@ Both gated by the same `{{ if $b.enabled }}`.
       set -eu
       rclone copy "s3:${BUCKET}/${PREFIX}" /workdir --create-empty-src-dirs $EXTRA_ARGS
   env:
+    - name: HOME
+      value: /tmp                      # rclone needs a writable HOME for cache
     {{- include "quill.s3.envVars" (dict "ctx" $ "name" $name "b" $b) | nindent 4 }}
   volumeMounts:
     - name: workdir
@@ -158,6 +233,10 @@ returns 0 (no files to copy is not an error).
   image: "{{ $b.rclone.image }}:{{ $b.rclone.tag }}"
   imagePullPolicy: {{ $b.rclone.pullPolicy }}
   restartPolicy: Always
+  securityContext:
+    runAsUser: {{ $b.ownership.runAsUser }}
+    runAsGroup: {{ $b.ownership.runAsGroup }}
+    runAsNonRoot: true
   command:
     - /bin/sh
     - -c
@@ -172,6 +251,8 @@ returns 0 (no files to copy is not an error).
             set -eu
             rclone sync /workdir "s3:${BUCKET}/${PREFIX}" --create-empty-src-dirs $EXTRA_ARGS
   env:
+    - name: HOME
+      value: /tmp
     {{- include "quill.s3.envVars" (dict "ctx" $ "name" $name "b" $b) | nindent 4 }}
   volumeMounts:
     - name: workdir
@@ -179,6 +260,15 @@ returns 0 (no files to copy is not an error).
   resources:
     {{- toYaml $b.resources | nindent 4 }}
 ```
+
+### Ownership model — what each piece guarantees
+
+| Mechanism | Guarantees |
+|---|---|
+| `runAsUser: 1000`, `runAsGroup: 1000` on rclone containers | Files written by `rclone copy` and read by `rclone sync` are owned by UID 1000, GID 1000 — directly matching the quill main container's runtime user. |
+| `runAsNonRoot: true` | Defence-in-depth: pod fails admission if the rclone image somehow ships with `USER 0`, preventing accidental root-owned writes. |
+| Pod-level `fsGroup: 1000` | Kubelet recursively chowns the `emptyDir` contents to GID 1000 at mount time **and** sets the SGID bit so future files inherit the GID. Covers the edge case where a custom image runs rclone as a different UID but shares the GID. |
+| `HOME=/tmp` env on rclone containers | rclone tries to write `~/.cache/rclone/` for transfer state; UID 1000 has no entry in the rclone Alpine image's `/etc/passwd`, so its default HOME resolves to `/`, which is read-only. Pointing HOME at the writable `/tmp` tmpfs avoids the `mkdir: permission denied` warning. |
 
 `exec sleep infinity` replaces `while true; do sleep 3600; done`:
 
@@ -262,9 +352,17 @@ backup. Extend the harness to assert:
    command.
 7. **`s3-restore` command contains `rclone copy`** but **not `sleep`**.
 8. **`s3-backup` command contains `sleep infinity`** but **not `rclone copy`**.
-9. **`backup.enabled: false` produces zero initContainers** (regression
-   guard for the disabled path).
-10. **All three auth modes still render** (existing assertions retained).
+9. **Both rclone containers have `runAsUser: 1000`, `runAsGroup: 1000`,
+   `runAsNonRoot: true`** in their `securityContext`.
+10. **Pod template has `securityContext.fsGroup: 1000`** when backup is
+    enabled.
+11. **Both rclone containers have `HOME=/tmp` env var**.
+12. **`backup.enabled: false` produces zero initContainers and no
+    pod-level `fsGroup`** (regression guard for the disabled path).
+13. **Custom ownership values propagate**: a new `tests/values-custom-uid.yaml`
+    with `backup.ownership.runAsUser: 2000` (and matching gid/fsGroup)
+    must render those values into the security contexts.
+14. **All three auth modes still render** (existing assertions retained).
 
 Implementation: extend the bash assertions in `tests/template-tests.sh`
 using `yq` selectors against the rendered YAML.
@@ -278,7 +376,9 @@ Documented in the implementation plan, not the spec — but in scope:
 3. Delete pod (`kubectl delete pod …`).
 4. New pod starts → confirm `/home/agent` is fully populated **before**
    `quill` process emits its first log line (check kubelet event timeline).
-5. `/pick` from a chat client returns the historical session list.
+5. **Verify ownership**: `kubectl exec <pod> -c quill -- stat -c '%u:%g %n' /home/agent/.local/share/kiro-cli/data.sqlite3` returns `1000:1000 …`.
+6. **Verify writability**: same exec runs `touch /home/agent/.write-probe && rm /home/agent/.write-probe` without error.
+7. `/pick` from a chat client returns the historical session list.
 
 ## Risks and trade-offs
 
@@ -302,6 +402,18 @@ Documented in the implementation plan, not the spec — but in scope:
 Existing chart users running 2026-04-27's single-sidecar layout: a
 `helm upgrade` replaces the Deployment template; rolling update creates
 new pods with the two-container init layout. No state migration needed
-because the S3 prefix and emptyDir contracts are unchanged. The new
-`s3-restore` simply succeeds where the old single-sidecar's race-prone
-copy was failing.
+because the S3 prefix and emptyDir contracts are unchanged.
+
+**Existing root-owned files in S3**: any user already running the broken
+v0.22.x layout has a snapshot in S3 that may have been written by either
+the agent (UID 1000, mode 0644) or never written at all (sidecar wrote
+with UID 0 to the emptyDir, then preStop sync uploaded those root-owned
+metadata to S3). After upgrade:
+
+- `rclone copy` from S3 to the emptyDir runs as UID 1000:1000 — files
+  land owned by UID 1000:1000 regardless of how they were uploaded.
+- Pod-level `fsGroup: 1000` chowns the emptyDir's existing tree as
+  belt-and-suspenders.
+
+So no manual cleanup of S3 objects is required. The first post-upgrade
+pod start auto-heals ownership.
