@@ -2,20 +2,26 @@ package cronjob
 
 import (
 	"context"
+	"sync"
 	"testing"
 )
 
 type fakeDispatcher struct {
-	fires    []Job
-	dropped  []Job
+	mu      sync.Mutex
+	fires   []Job
+	dropped []Job
 }
 
 func (f *fakeDispatcher) Fire(ctx context.Context, job Job) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.fires = append(f.fires, job)
 	return nil
 }
 
 func (f *fakeDispatcher) NotifyDropped(ctx context.Context, job Job) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.dropped = append(f.dropped, job)
 }
 
