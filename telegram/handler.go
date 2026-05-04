@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/neilkuan/quill/acp"
 	"github.com/neilkuan/quill/command"
 	"github.com/neilkuan/quill/config"
+	"github.com/neilkuan/quill/cronjob"
 	"github.com/neilkuan/quill/markdown"
 	"github.com/neilkuan/quill/platform"
 	"github.com/neilkuan/quill/sessionpicker"
@@ -43,8 +45,10 @@ type Handler struct {
 	MarkdownTableMode markdown.TableMode
 	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
-	Picker  sessionpicker.Picker
-	botUser *models.User
+	Picker    sessionpicker.Picker
+	CronStore *cronjob.Store
+	CronCfg   config.CronjobConfig
+	botUser   *models.User
 }
 
 func (h *Handler) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -343,11 +347,31 @@ func (h *Handler) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mes
 		"has_document", hasDocument || hasReplyDocument,
 	)
 
-	// Send initial "thinking" message as a reply
+	// Owner descriptor used both for the placeholder text and the
+	// later SessionPrompt call so /info-style introspection can name
+	// who is currently running on this connection.
+	ownerDesc := "user"
+	if msg.From != nil && msg.From.Username != "" {
+		ownerDesc = "user @" + msg.From.Username
+	} else if msg.From != nil && msg.From.FirstName != "" {
+		ownerDesc = "user " + msg.From.FirstName
+	}
+
+	// If the connection already has another prompt running (e.g. a
+	// long cron fire), tell the user up front instead of showing a
+	// silent "thinking…" they'll mistake for the bot dying.
+	thinkingText := "💭 <i>thinking…</i>"
+	if conn := h.Pool.Connection(sessionKey); conn != nil && conn.Alive() {
+		if busy, owner := conn.IsBusy(); busy {
+			thinkingText = fmt.Sprintf("⏳ <i>queued behind %s — agent is busy. Use /stop to cancel and run yours first.</i>", html.EscapeString(owner))
+		}
+	}
+
+	// Send initial "thinking" / "queued" message as a reply
 	sent, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:          chatID,
 		MessageThreadID: threadID,
-		Text:            "💭 <i>thinking…</i>",
+		Text:            thinkingText,
 		ParseMode:       models.ParseModeHTML,
 		ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
 	})
@@ -377,7 +401,7 @@ func (h *Handler) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mes
 	)
 	reactions.SetQueued()
 
-	finalText, cancelled, result := h.streamPrompt(ctx, b, sessionKey, contentBlocks, chatID, sent.ID, threadID, reactions)
+	finalText, cancelled, result := h.streamPrompt(ctx, b, sessionKey, contentBlocks, chatID, sent.ID, threadID, reactions, ownerDesc)
 
 	// Cleanup downloaded images and file attachments
 	for _, p := range imagePaths {
@@ -457,6 +481,14 @@ func (h *Handler) handleCommand(ctx context.Context, b *bot.Bot, chatID int64, t
 		return
 	case command.CmdHelp:
 		response = command.ExecuteHelp()
+	case command.CmdCron:
+		sessionKey := buildSessionKeyFromChat(chatID, threadID)
+		sub, _, _, _ := command.ParseCronArgs(strings.TrimSpace(cmd.Args))
+		if sub == "list" {
+			h.sendCronList(ctx, b, chatID, threadID, msg, sessionKey)
+			return
+		}
+		response = h.handleCronCommand(sessionKey, msg, cmd.Args)
 	default:
 		return
 	}
@@ -501,6 +533,11 @@ const modelCallbackPrefix = "model|"
 // session UUIDs would blow Telegram's 64-byte callback_data cap for
 // typical threadKeys. Format: "pick|<sessionKey>|<N>".
 const pickCallbackPrefix = "pick|"
+
+// cronCallbackPrefix marks callback_data produced by the /cron list
+// inline keyboard. Format: "cron|rm|<sessionKey>|<id>" — the sub-action
+// is currently always "rm" but kept explicit for future extensions.
+const cronCallbackPrefix = "cron|"
 
 // telegramCallbackDataMax is Telegram's hard limit for
 // callback_data payloads (bytes). The BotAPI rejects buttons above
@@ -674,6 +711,78 @@ func (h *Handler) sendPickPicker(ctx context.Context, b *bot.Bot, chatID int64, 
 	})
 }
 
+// sendCronList renders the thread's scheduled prompts as an inline
+// keyboard with a 🗑️ button per row. Tap to delete via the
+// cronCallbackPrefix path.
+func (h *Handler) sendCronList(ctx context.Context, b *bot.Bot, chatID int64, threadID int,
+	msg *models.Message, sessionKey string) {
+
+	if h.CronStore == nil || h.CronCfg.Disabled {
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:          chatID,
+			MessageThreadID: threadID,
+			Text:            "⚠️ Cron jobs are disabled on this bot.",
+			ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		}); err != nil {
+			slog.Warn("telegram /cron list (disabled) send failed", "error", err)
+		}
+		return
+	}
+
+	tz, _ := time.LoadLocation(h.CronCfg.Timezone)
+	if tz == nil {
+		tz = time.UTC
+	}
+
+	jobs := command.ListCronJobs(h.CronStore, sessionKey)
+	if len(jobs) == 0 {
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:          chatID,
+			MessageThreadID: threadID,
+			Text:            "📭 No scheduled prompts. Create one with /cron add <schedule> <prompt>.",
+			ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		}); err != nil {
+			slog.Warn("telegram /cron list (empty) send failed", "error", err)
+		}
+		return
+	}
+
+	// Plain text body: cron expressions contain '*' which Telegram's
+	// legacy Markdown mode would try to interpret as bold markers and
+	// silently reject the whole message. The list reads fine without
+	// formatting; the InlineKeyboard buttons carry the interactive bit.
+	rows := make([][]models.InlineKeyboardButton, 0, len(jobs))
+	var body strings.Builder
+	body.WriteString("⏰ Scheduled prompts in this thread\n\n")
+	for _, j := range jobs {
+		body.WriteString(fmt.Sprintf("%s — %s — next %s\n  → %s\n",
+			j.ID, j.Schedule, j.NextFire.In(tz).Format("2006-01-02 15:04 MST"),
+			truncate(j.Prompt, 80)))
+
+		cb := cronCallbackPrefix + "rm|" + sessionKey + "|" + j.ID
+		if len(cb) > telegramCallbackDataMax {
+			// Skip the button if the callback_data would exceed Telegram's cap.
+			// User can still delete via `/cron rm <id>`.
+			slog.Warn("skipping telegram cron button: callback_data over cap",
+				"job_id", j.ID, "len", len(cb), "cap", telegramCallbackDataMax)
+			continue
+		}
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: "🗑️ " + j.ID, CallbackData: cb},
+		})
+	}
+
+	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:          chatID,
+		MessageThreadID: threadID,
+		Text:            body.String(),
+		ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+	}); err != nil {
+		slog.Warn("telegram /cron list send failed", "error", err)
+	}
+}
+
 func truncateForButton(s string, max int) string {
 	r := []rune(s)
 	if len(r) <= max {
@@ -723,6 +832,18 @@ func (h *Handler) handleCallbackQuery(ctx context.Context, b *bot.Bot, cq *model
 			return
 		}
 		resultMsg = command.LoadPickerByIndex(h.Pool, parts[0], n)
+	case strings.HasPrefix(data, cronCallbackPrefix):
+		// Format: cron|<action>|<sessionKey>|<id>; only "rm" is implemented in V1.
+		rest := strings.TrimPrefix(data, cronCallbackPrefix)
+		parts := strings.SplitN(rest, "|", 3)
+		if len(parts) != 3 || parts[0] != "rm" {
+			return
+		}
+		if h.CronStore == nil {
+			resultMsg = "⚠️ Cron jobs are disabled on this bot."
+		} else {
+			resultMsg = command.ExecuteCronRemove(h.CronStore, parts[1], parts[2])
+		}
 	default:
 		return
 	}
@@ -748,11 +869,12 @@ func (h *Handler) streamPrompt(
 	msgID int,
 	threadID int,
 	reactions *StatusReactionController,
+	owner string,
 ) (string, bool, error) {
 	var finalText string
 	var cancelled bool
 	err := h.Pool.WithConnection(sessionKey, func(conn *acp.AcpConnection) error {
-		rx, _, reset, resumed, err := conn.SessionPrompt(content)
+		rx, _, reset, resumed, err := conn.SessionPrompt(content, owner)
 		if err != nil {
 			return err
 		}
@@ -925,7 +1047,7 @@ func (h *Handler) streamPrompt(
 			slog.Info("copilot auto-retry: switching model after reasoning_effort rejection",
 				"thread_key", conn.ThreadKey, "session_id", conn.SessionID,
 				"previous_model", current, "fallback_model", newModel)
-			newRx, _, _, _, promptErr2 := conn.SessionPrompt(content)
+			newRx, _, _, _, promptErr2 := conn.SessionPrompt(content, owner)
 			if promptErr2 != nil {
 				slog.Warn("copilot auto-retry: session_prompt failed",
 					"thread_key", conn.ThreadKey, "session_id", conn.SessionID,
@@ -1274,4 +1396,66 @@ func (h *Handler) downloadFile(ctx context.Context, b *bot.Bot, fileID, filename
 	}
 
 	return localPath, nil
+}
+
+// handleCronCommand routes /cron <sub> <args> to the cronjob package
+// and returns the chat-friendly text response.
+func (h *Handler) handleCronCommand(threadKey string, msg *models.Message, args string) string {
+	if h.CronStore == nil || h.CronCfg.Disabled {
+		return "⚠️ Cron jobs are disabled on this bot."
+	}
+	sub, schedule, prompt, err := command.ParseCronArgs(args)
+	if err != nil {
+		return fmt.Sprintf("⚠️ %v\n\nUsage: `/cron add <schedule> <prompt>`, `/cron list`, `/cron rm <id>`", err)
+	}
+	tz, _ := time.LoadLocation(h.CronCfg.Timezone)
+	if tz == nil {
+		tz = time.UTC
+	}
+	minInterval := time.Duration(h.CronCfg.MinIntervalSeconds) * time.Second
+
+	switch sub {
+	case "add":
+		senderID := fmt.Sprintf("%d", msg.From.ID)
+		senderName := msg.From.Username
+		if senderName == "" {
+			senderName = msg.From.FirstName
+			if msg.From.LastName != "" {
+				senderName += " " + msg.From.LastName
+			}
+		}
+		_, replyMsg := command.ExecuteCronAdd(h.CronStore, threadKey,
+			senderID, senderName,
+			schedule, prompt,
+			h.CronCfg.MaxPerThread, minInterval, tz)
+		return replyMsg
+	case "list":
+		jobs := command.ListCronJobs(h.CronStore, threadKey)
+		return formatCronList(jobs, tz)
+	case "rm":
+		// schedule slot carries the id for rm
+		return command.ExecuteCronRemove(h.CronStore, threadKey, schedule)
+	}
+	return "⚠️ Unknown cron subcommand"
+}
+
+func formatCronList(jobs []cronjob.Job, tz *time.Location) string {
+	if len(jobs) == 0 {
+		return "📭 No scheduled prompts in this thread.\n\nCreate one with `/cron add <schedule> <prompt>`."
+	}
+	var sb strings.Builder
+	sb.WriteString("⏰ *Scheduled prompts in this thread*\n\n")
+	for _, j := range jobs {
+		sb.WriteString(fmt.Sprintf("`%s` — `%s` — next %s\n  → %s\n",
+			j.ID, j.Schedule, j.NextFire.In(tz).Format("2006-01-02 15:04 MST"),
+			truncate(j.Prompt, 80)))
+	}
+	return sb.String()
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-1] + "…"
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/neilkuan/quill/acp"
 	"github.com/neilkuan/quill/command"
 	"github.com/neilkuan/quill/config"
+	"github.com/neilkuan/quill/cronjob"
 	"github.com/neilkuan/quill/markdown"
 	"github.com/neilkuan/quill/platform"
 	"github.com/neilkuan/quill/sessionpicker"
@@ -41,6 +42,9 @@ type Handler struct {
 	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
 	Picker sessionpicker.Picker
+	// CronStore and CronCfg are for scheduling recurring prompts via /cron.
+	CronStore *cronjob.Store
+	CronCfg   config.CronjobConfig
 
 	// streamingMu guards streamingMsgs.
 	streamingMu sync.Mutex
@@ -334,13 +338,31 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		}
 	}
 
-	thinkingMsg, err := s.ChannelMessageSend(threadID, "💭 _thinking..._")
+	threadKey := buildSessionKey(threadID)
+
+	// Owner descriptor for IsBusy / queued-placeholder rendering.
+	ownerDesc := "user"
+	if m.Author != nil {
+		if m.Member != nil && m.Member.Nick != "" {
+			ownerDesc = "user " + m.Member.Nick
+		} else if m.Author.Username != "" {
+			ownerDesc = "user @" + m.Author.Username
+		}
+	}
+
+	thinkingText := "💭 _thinking..._"
+	if conn := h.Pool.Connection(threadKey); conn != nil && conn.Alive() {
+		if busy, owner := conn.IsBusy(); busy {
+			thinkingText = fmt.Sprintf("⏳ _queued behind %s — agent is busy. Use /stop to cancel and run yours first._", owner)
+		}
+	}
+
+	thinkingMsg, err := s.ChannelMessageSend(threadID, thinkingText)
 	if err != nil {
 		slog.Error("failed to post", "error", err)
 		return
 	}
 
-	threadKey := buildSessionKey(threadID)
 	if err := h.Pool.GetOrCreate(threadKey); err != nil {
 		s.ChannelMessageEdit(threadID, thinkingMsg.ID, fmt.Sprintf("⚠️ Failed to start agent: %v", err))
 		slog.Error("pool error", "error", err)
@@ -373,7 +395,7 @@ func (h *Handler) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		}
 	}
 
-	finalText, cancelled, result := streamPrompt(h.Pool, threadKey, contentBlocks, s, threadID, thinkingMsg.ID, reactions, h.MarkdownTableMode, h.ReactionsConfig.ToolDisplay)
+	finalText, cancelled, result := streamPrompt(h.Pool, threadKey, contentBlocks, s, threadID, thinkingMsg.ID, reactions, h.MarkdownTableMode, h.ReactionsConfig.ToolDisplay, ownerDesc)
 
 	// Cleanup downloaded images and file attachments
 	for _, p := range imagePaths {
@@ -529,6 +551,49 @@ var slashCommands = []*discordgo.ApplicationCommand{
 		Name:        "help",
 		Description: "Show available commands",
 	},
+	{
+		Name:        "cron",
+		Description: "Schedule recurring or one-shot prompts",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "add",
+				Description: "Schedule a prompt",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        "schedule",
+						Description: "cron / every Xm / at HH:MM / in 30m",
+						Required:    true,
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        "prompt",
+						Description: "Prompt body",
+						Required:    true,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "list",
+				Description: "List scheduled prompts in this channel",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "rm",
+				Description: "Remove a scheduled prompt",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        "id",
+						Description: "Job id from /cron list",
+						Required:    true,
+					},
+				},
+			},
+		},
+	},
 }
 
 // modeSelectCustomIDPrefix prefixes the CustomID of the <SelectMenu>
@@ -586,6 +651,10 @@ func (h *Handler) handleSlashCommand(s *discordgo.Session, i *discordgo.Interact
 	}
 	if data.Name == command.CmdPicker {
 		h.handlePickSlash(s, i, data)
+		return
+	}
+	if data.Name == command.CmdCron {
+		h.handleCronSlash(s, i, data)
 		return
 	}
 
@@ -961,11 +1030,12 @@ func streamPrompt(
 	reactions *StatusReactionController,
 	tableMode markdown.TableMode,
 	toolDisplay string,
+	owner string,
 ) (string, bool, error) {
 	var finalText string
 	var cancelled bool
 	err := pool.WithConnection(threadKey, func(conn *acp.AcpConnection) error {
-		rx, _, reset, resumed, err := conn.SessionPrompt(content)
+		rx, _, reset, resumed, err := conn.SessionPrompt(content, owner)
 		if err != nil {
 			return err
 		}
@@ -1137,7 +1207,7 @@ func streamPrompt(
 			slog.Info("copilot auto-retry: switching model after reasoning_effort rejection",
 				"thread_key", conn.ThreadKey, "session_id", conn.SessionID,
 				"previous_model", current, "fallback_model", newModel)
-			newRx, _, _, _, promptErr2 := conn.SessionPrompt(content)
+			newRx, _, _, _, promptErr2 := conn.SessionPrompt(content, owner)
 			if promptErr2 != nil {
 				slog.Warn("copilot auto-retry: session_prompt failed",
 					"thread_key", conn.ThreadKey, "session_id", conn.SessionID,
@@ -1516,4 +1586,91 @@ func downloadAudioToFile(url, filename, tmpDir string) (string, error) {
 	}
 
 	return localPath, nil
+}
+
+// handleCronSlash dispatches /cron <add|list|rm>.
+func (h *Handler) handleCronSlash(s *discordgo.Session, i *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) {
+	if h.CronStore == nil || h.CronCfg.Disabled {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{Content: "⚠️ Cron jobs are disabled on this bot."},
+		})
+		return
+	}
+	if len(data.Options) == 0 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{Content: "⚠️ Use one of: `add`, `list`, `rm`."},
+		})
+		return
+	}
+	sub := data.Options[0]
+	threadKey := buildSessionKey(i.ChannelID)
+	tz, _ := time.LoadLocation(h.CronCfg.Timezone)
+	if tz == nil {
+		tz = time.UTC
+	}
+	minInterval := time.Duration(h.CronCfg.MinIntervalSeconds) * time.Second
+
+	var content string
+	switch sub.Name {
+	case "add":
+		schedule, prompt := "", ""
+		for _, opt := range sub.Options {
+			if opt.Name == "schedule" {
+				schedule = opt.StringValue()
+			}
+			if opt.Name == "prompt" {
+				prompt = opt.StringValue()
+			}
+		}
+		senderID, senderName := "", ""
+		if i.Member != nil {
+			senderID = i.Member.User.ID
+			senderName = i.Member.User.Username
+		} else if i.User != nil {
+			senderID = i.User.ID
+			senderName = i.User.Username
+		}
+		_, content = command.ExecuteCronAdd(h.CronStore, threadKey,
+			senderID, senderName,
+			schedule, prompt,
+			h.CronCfg.MaxPerThread, minInterval, tz)
+	case "list":
+		jobs := command.ListCronJobs(h.CronStore, threadKey)
+		content = formatDiscordCronList(jobs, tz)
+	case "rm":
+		id := ""
+		for _, opt := range sub.Options {
+			if opt.Name == "id" {
+				id = opt.StringValue()
+			}
+		}
+		content = command.ExecuteCronRemove(h.CronStore, threadKey, id)
+	default:
+		content = "⚠️ Unknown cron subcommand"
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: content},
+	})
+}
+
+func formatDiscordCronList(jobs []cronjob.Job, tz *time.Location) string {
+	if len(jobs) == 0 {
+		return "📭 No scheduled prompts in this channel.\n\nCreate one with `/cron add`."
+	}
+	var sb strings.Builder
+	sb.WriteString("⏰ **Scheduled prompts in this channel**\n\n")
+	for _, j := range jobs {
+		body := j.Prompt
+		if len(body) > 80 {
+			body = body[:79] + "…"
+		}
+		sb.WriteString(fmt.Sprintf("`%s` — `%s` — next %s\n  → %s\n",
+			j.ID, j.Schedule, j.NextFire.In(tz).Format("2006-01-02 15:04 MST"),
+			body))
+	}
+	return sb.String()
 }
