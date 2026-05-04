@@ -72,8 +72,11 @@ error_hold_ms = 2500
 # allowed_channels = ["19:abc123@thread.tacv2"]
 # allowed_user_id, when set, takes precedence over allowed_channels —
 # the bot will only respond to these Teams user IDs (in any conversation).
-# Use ["*"] as a wildcard to allow any user.
-# allowed_user_id = ["29:user-object-id"]
+# Use ["*"] as a wildcard to allow any user. Matched against the user's
+# Entra ID (AAD) Object ID first — the GUID shown as "Object ID" in the
+# Teams profile card; the Bot Framework channel ID (29:xxx) is also
+# accepted for back-compat.
+# allowed_user_id = ["921f866a-c005-4e5f-b520-38e6dbe29a5f"]
 # allowed_user_id = ["*"]
 # tool_display = "compact"   # full | compact | none — see [discord.reactions] above
 

@@ -135,8 +135,9 @@ app_id = "${TEAMS_APP_ID}"
 app_secret = "${TEAMS_APP_SECRET}"
 tenant_id = "${TEAMS_TENANT_ID}"
 listen = ":3978"
-# allowed_user_id = ["*"]             # wildcard: any user
-# allowed_user_id = ["29:user-id"]    # or specific Teams user IDs
+# allowed_user_id = ["*"]                                          # wildcard: any user
+# allowed_user_id = ["921f866a-c005-4e5f-b520-38e6dbe29a5f"]       # Entra ID (AAD) Object ID — preferred
+# allowed_user_id = ["29:1abcd..."]                                # legacy Bot Framework channel ID — also accepted
 
 [agent]
 command = "kiro-cli"
@@ -169,6 +170,15 @@ Matching is against the numeric user ID, not the username — usernames can chan
 - **From logs:** run with `QUILL_LOG=debug`, send the bot a message, and look for `user_id=...` in the `telegram update` log line.
 
 Telegram IDs go in quotes in TOML (`["123456789"]`, not `[123456789]`) so `"*"` can coexist with numeric IDs in the same array.
+
+###### How to find a user's Teams ID
+
+Teams supports two ID formats — pick whichever is more convenient:
+
+- **Entra ID (AAD) Object ID** *(preferred)* — the GUID shown as **Object ID** in the Teams profile card (open the user's profile → **Copy object ID**), e.g. `921f866a-c005-4e5f-b520-38e6dbe29a5f`. Stable across tenants and human-readable.
+- **Bot Framework channel ID** *(legacy, back-compat)* — the `29:xxxxxx` string the Bot Framework attaches to inbound activities. Run with `QUILL_LOG=debug`, send the bot a message, and look for `user_id=...` in the `teams message received` log line — `aad_object_id=...` on the same line is the GUID above.
+
+Both forms are matched against the same `allowed_user_id` array, so existing configs using `29:xxx` keep working without changes.
 
 ##### STT — Speech-to-Text (Optional)
 

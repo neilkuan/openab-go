@@ -440,3 +440,122 @@ func TestBuildPromptContent_FileBlockStillRendered(t *testing.T) {
 		t.Errorf("expected file block to mention spec.pdf, got: %s", got)
 	}
 }
+
+func TestAccessGateAllows(t *testing.T) {
+	const (
+		channelUserID = "29:1abcd-channel-id"
+		aadObjectID   = "921f866a-c005-4e5f-b520-38e6dbe29a5f"
+		convID        = "19:meeting@thread.tacv2"
+	)
+
+	mk := func(allowedUsers []string, allowAny bool, channels []string) *Handler {
+		h := &Handler{
+			AllowAnyUser:    allowAny,
+			AllowedUserIDs:  map[string]bool{},
+			AllowedChannels: map[string]bool{},
+		}
+		for _, u := range allowedUsers {
+			h.AllowedUserIDs[u] = true
+		}
+		for _, c := range channels {
+			h.AllowedChannels[c] = true
+		}
+		return h
+	}
+
+	mkActivity := func(userID, aad, conv string) *Activity {
+		return &Activity{
+			From:         Account{ID: userID, AADObjectID: aad, Name: "Neil"},
+			Conversation: Conversation{ID: conv},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		handler *Handler
+		act     *Activity
+		want    bool
+	}{
+		{
+			name:    "allow by AAD object id",
+			handler: mk([]string{aadObjectID}, false, nil),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    true,
+		},
+		{
+			name:    "allow by legacy 29: channel id (back-compat)",
+			handler: mk([]string{channelUserID}, false, nil),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    true,
+		},
+		{
+			name:    "reject when neither id is in allowlist",
+			handler: mk([]string{"00000000-0000-0000-0000-000000000000"}, false, nil),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    false,
+		},
+		{
+			name:    "wildcard allows any user, ignores channel allowlist",
+			handler: mk(nil, true, []string{"19:other@thread.tacv2"}),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    true,
+		},
+		{
+			name:    "user gate active overrides channel gate (channel match irrelevant)",
+			handler: mk([]string{"someone-else"}, false, []string{convID}),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    false,
+		},
+		{
+			name:    "channel gate when user gate is empty: allow",
+			handler: mk(nil, false, []string{convID}),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    true,
+		},
+		{
+			name:    "channel gate when user gate is empty: reject",
+			handler: mk(nil, false, []string{"19:other@thread.tacv2"}),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    false,
+		},
+		{
+			name:    "no gates configured: allow",
+			handler: mk(nil, false, nil),
+			act:     mkActivity(channelUserID, aadObjectID, convID),
+			want:    true,
+		},
+		{
+			name:    "AAD id empty falls back to channel id match",
+			handler: mk([]string{channelUserID}, false, nil),
+			act:     mkActivity(channelUserID, "", convID),
+			want:    true,
+		},
+		{
+			name:    "AAD id empty and only AAD GUID in allowlist: reject",
+			handler: mk([]string{aadObjectID}, false, nil),
+			act:     mkActivity(channelUserID, "", convID),
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.handler.accessGateAllows(tt.act)
+			if got != tt.want {
+				t.Errorf("accessGateAllows() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAccount_AADObjectIDJSON(t *testing.T) {
+	// Confirm the Bot Framework wire format deserialises into the new field.
+	raw := []byte(`{"id":"29:1xxx","name":"Neil","aadObjectId":"921f866a-c005-4e5f-b520-38e6dbe29a5f"}`)
+	var a Account
+	if err := json.Unmarshal(raw, &a); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if a.AADObjectID != "921f866a-c005-4e5f-b520-38e6dbe29a5f" {
+		t.Errorf("AADObjectID = %q, want GUID", a.AADObjectID)
+	}
+}

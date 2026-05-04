@@ -22,6 +22,10 @@ type Activity struct {
 type Account struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
+	// AADObjectID is the user's Entra ID (Azure AD) object ID — the GUID
+	// shown as "Object ID" in the Teams profile card. Bot Framework only
+	// populates this field on Teams channels, not on Web Chat / Emulator.
+	AADObjectID string `json:"aadObjectId,omitempty"`
 }
 
 type Conversation struct {

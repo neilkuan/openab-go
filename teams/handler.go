@@ -59,30 +59,21 @@ func (h *Handler) OnMessage(activity *Activity) {
 		return
 	}
 
-	conversationID := activity.Conversation.ID
-	userID := activity.From.ID
-
 	slog.Debug("teams message received",
-		"conversation_id", conversationID,
-		"user_id", userID,
+		"conversation_id", activity.Conversation.ID,
+		"user_id", activity.From.ID,
+		"aad_object_id", activity.From.AADObjectID,
 		"user_name", activity.From.Name,
 		"text", activity.Text,
 		"attachments", len(activity.Attachments),
 		"entities", len(activity.Entities))
 
-	// Access gate: allowed_user_id takes precedence over allowed_channels
-	userGateActive := h.AllowAnyUser || len(h.AllowedUserIDs) > 0
-	if userGateActive {
-		if !h.AllowAnyUser && !h.AllowedUserIDs[userID] {
-			slog.Warn("🚨👽🚨 teams message from unlisted user (add to allowed_user_id to enable)",
-				"user_id", userID, "user_name", activity.From.Name)
-			return
-		}
-	} else if len(h.AllowedChannels) > 0 && !h.AllowedChannels[conversationID] {
-		slog.Warn("🚨👽🚨 teams message from unlisted channel (add to allowed_channels to enable)",
-			"conversation_id", conversationID)
+	if !h.accessGateAllows(activity) {
 		return
 	}
+
+	conversationID := activity.Conversation.ID
+	userID := activity.From.ID
 
 	// Check for bot mention and extract prompt
 	isMentioned := isBotMentioned(activity.Recipient.ID, activity.Entities)
@@ -278,6 +269,38 @@ func (h *Handler) OnMessage(activity *Activity) {
 			},
 		)
 	}
+}
+
+// accessGateAllows returns true when the activity is allowed past the
+// access gate. allowed_user_id (with "*" as wildcard) takes precedence
+// over allowed_channels. User IDs are matched against the Entra ID
+// (AAD) Object ID first — the GUID shown as "Object ID" in the Teams
+// profile card — and fall back to the Bot Framework channel ID
+// (`29:xxx`) for back-compat with existing configs. Rejected activities
+// emit slog.Warn so misconfigurations are diagnosable from logs.
+func (h *Handler) accessGateAllows(activity *Activity) bool {
+	userID := activity.From.ID
+	aadObjectID := activity.From.AADObjectID
+	conversationID := activity.Conversation.ID
+
+	userGateActive := h.AllowAnyUser || len(h.AllowedUserIDs) > 0
+	if userGateActive {
+		userAllowed := h.AllowAnyUser ||
+			(aadObjectID != "" && h.AllowedUserIDs[aadObjectID]) ||
+			h.AllowedUserIDs[userID]
+		if !userAllowed {
+			slog.Warn("🚨👽🚨 teams message from unlisted user (add to allowed_user_id to enable)",
+				"user_id", userID, "aad_object_id", aadObjectID, "user_name", activity.From.Name)
+			return false
+		}
+		return true
+	}
+	if len(h.AllowedChannels) > 0 && !h.AllowedChannels[conversationID] {
+		slog.Warn("🚨👽🚨 teams message from unlisted channel (add to allowed_channels to enable)",
+			"conversation_id", conversationID)
+		return false
+	}
+	return true
 }
 
 // handleCommand processes slash commands

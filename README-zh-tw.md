@@ -150,8 +150,9 @@ app_id = "${TEAMS_APP_ID}"
 app_secret = "${TEAMS_APP_SECRET}"
 tenant_id = "${TEAMS_TENANT_ID}"
 listen = ":3978"
-# allowed_user_id = ["*"]             # 萬用字元：任何使用者
-# allowed_user_id = ["29:user-id"]    # 或指定 Teams user ID
+# allowed_user_id = ["*"]                                          # 萬用字元：任何使用者
+# allowed_user_id = ["921f866a-c005-4e5f-b520-38e6dbe29a5f"]       # Entra ID (AAD) Object ID — 建議使用
+# allowed_user_id = ["29:1abcd..."]                                # 舊版 Bot Framework channel ID — 仍可接受
 
 [agent]
 command = "kiro-cli"
@@ -184,6 +185,15 @@ remove_after_reply = false
 - **從 log：** 用 `QUILL_LOG=debug` 啟動 bot，傳一則訊息，看 `telegram update` 這行 log 的 `user_id=...`。
 
 Telegram 的 ID 在 TOML 中要加引號（`["123456789"]`，不是 `[123456789]`），這樣 `"*"` 才能和數字 ID 並存於同一陣列中。
+
+###### Teams 怎麼取得 user ID
+
+Teams 支援兩種 ID 格式，擇一即可：
+
+- **Entra ID (AAD) Object ID** *（建議）* — Teams profile 卡片上的 **Object ID** GUID（點使用者頭像 → **Copy object ID**），例如 `921f866a-c005-4e5f-b520-38e6dbe29a5f`。跨租戶穩定且人類可讀。
+- **Bot Framework channel ID** *（舊版、向下相容）* — Bot Framework 在 inbound activity 上掛的 `29:xxxxxx` 字串。用 `QUILL_LOG=debug` 啟動 bot，傳訊息給它，看 `teams message received` 這行 log 的 `user_id=...`；同一行的 `aad_object_id=...` 即上方的 GUID。
+
+兩種格式比對的是同一個 `allowed_user_id` 陣列，現有用 `29:xxx` 的設定不需要改動就會繼續運作。
 
 ##### STT — 語音轉文字（選用）
 
