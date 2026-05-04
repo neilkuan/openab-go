@@ -633,6 +633,39 @@ tenant_id = "test-tenant-id"
 	}
 }
 
+func TestCronjobDefaults(t *testing.T) {
+	cfg := &Config{}
+	applyDefaults(cfg) // existing helper that fills in zero values
+
+	if cfg.Cronjob.Disabled {
+		t.Error("Cronjob default should be enabled (Disabled=false)")
+	}
+	if cfg.Cronjob.MaxPerThread != 20 {
+		t.Errorf("MaxPerThread=%d want 20", cfg.Cronjob.MaxPerThread)
+	}
+	if cfg.Cronjob.MinIntervalSeconds != 60 {
+		t.Errorf("MinIntervalSeconds=%d want 60", cfg.Cronjob.MinIntervalSeconds)
+	}
+	if cfg.Cronjob.QueueSize != 50 {
+		t.Errorf("QueueSize=%d want 50", cfg.Cronjob.QueueSize)
+	}
+	if cfg.Cronjob.Timezone != "UTC" {
+		t.Errorf("Timezone=%q want UTC", cfg.Cronjob.Timezone)
+	}
+	if cfg.Cronjob.StorePath == "" {
+		t.Error("StorePath should have a default")
+	}
+}
+
+func TestCronjobExplicitDisable(t *testing.T) {
+	// User sets disabled=true in TOML — defaults must not re-enable it.
+	cfg := &Config{Cronjob: CronjobConfig{Disabled: true}}
+	applyDefaults(cfg)
+	if !cfg.Cronjob.Disabled {
+		t.Error("explicit disabled=true must survive applyDefaults")
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

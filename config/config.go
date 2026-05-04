@@ -21,6 +21,7 @@ type Config struct {
 	Discord DiscordConfig `toml:"discord"`
 	Telegram   TelegramConfig   `toml:"telegram"`
 	Teams      TeamsConfig      `toml:"teams"`
+	Cronjob    CronjobConfig    `toml:"cronjob"`
 }
 
 // --- Markdown ---
@@ -32,6 +33,20 @@ type Config struct {
 // per cell), or "off" (disable conversion).
 type MarkdownConfig struct {
 	Tables string `toml:"tables"`
+}
+
+// --- Cronjob ---
+
+// CronjobConfig controls user-scheduled prompt fires. The zero value
+// (no [cronjob] block in TOML) means "enabled with defaults". Users
+// opt out with `disabled = true`.
+type CronjobConfig struct {
+	Disabled           bool   `toml:"disabled"`
+	MaxPerThread       int    `toml:"max_per_thread"`
+	MinIntervalSeconds int    `toml:"min_interval_seconds"`
+	QueueSize          int    `toml:"queue_size"`
+	Timezone           string `toml:"timezone"`
+	StorePath          string `toml:"store_path"`
 }
 
 // --- Shared ---
@@ -205,6 +220,24 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Teams.Listen == "" {
 		cfg.Teams.Listen = ":3978"
+	}
+
+	// Cronjob — defaults if [cronjob] block omitted or partial. Disabled
+	// is intentionally left untouched: zero value means "enabled".
+	if cfg.Cronjob.MaxPerThread == 0 {
+		cfg.Cronjob.MaxPerThread = 20
+	}
+	if cfg.Cronjob.MinIntervalSeconds == 0 {
+		cfg.Cronjob.MinIntervalSeconds = 60
+	}
+	if cfg.Cronjob.QueueSize == 0 {
+		cfg.Cronjob.QueueSize = 50
+	}
+	if cfg.Cronjob.Timezone == "" {
+		cfg.Cronjob.Timezone = "UTC"
+	}
+	if cfg.Cronjob.StorePath == "" {
+		cfg.Cronjob.StorePath = "./.quill/cronjobs.json"
 	}
 }
 
