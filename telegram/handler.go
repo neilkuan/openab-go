@@ -462,6 +462,11 @@ func (h *Handler) handleCommand(ctx context.Context, b *bot.Bot, chatID int64, t
 		response = command.ExecuteHelp()
 	case command.CmdCron:
 		sessionKey := buildSessionKeyFromChat(chatID, threadID)
+		sub, _, _, _ := command.ParseCronArgs(strings.TrimSpace(cmd.Args))
+		if sub == "list" {
+			h.sendCronList(ctx, b, chatID, threadID, msg, sessionKey)
+			return
+		}
 		response = h.handleCronCommand(sessionKey, msg, cmd.Args)
 	default:
 		return
@@ -507,6 +512,11 @@ const modelCallbackPrefix = "model|"
 // session UUIDs would blow Telegram's 64-byte callback_data cap for
 // typical threadKeys. Format: "pick|<sessionKey>|<N>".
 const pickCallbackPrefix = "pick|"
+
+// cronCallbackPrefix marks callback_data produced by the /cron list
+// inline keyboard. Format: "cron|rm|<sessionKey>|<id>" — the sub-action
+// is currently always "rm" but kept explicit for future extensions.
+const cronCallbackPrefix = "cron|"
 
 // telegramCallbackDataMax is Telegram's hard limit for
 // callback_data payloads (bytes). The BotAPI rejects buttons above
@@ -680,6 +690,70 @@ func (h *Handler) sendPickPicker(ctx context.Context, b *bot.Bot, chatID int64, 
 	})
 }
 
+// sendCronList renders the thread's scheduled prompts as an inline
+// keyboard with a 🗑️ button per row. Tap to delete via the
+// cronCallbackPrefix path.
+func (h *Handler) sendCronList(ctx context.Context, b *bot.Bot, chatID int64, threadID int,
+	msg *models.Message, sessionKey string) {
+
+	if h.CronStore == nil || h.CronCfg.Disabled {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:          chatID,
+			MessageThreadID: threadID,
+			Text:            "⚠️ Cron jobs are disabled on this bot.",
+			ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		})
+		return
+	}
+
+	tz, _ := time.LoadLocation(h.CronCfg.Timezone)
+	if tz == nil {
+		tz = time.UTC
+	}
+
+	jobs := command.ListCronJobs(h.CronStore, sessionKey)
+	if len(jobs) == 0 {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:          chatID,
+			MessageThreadID: threadID,
+			Text:            "📭 No scheduled prompts. Create one with `/cron add <schedule> <prompt>`.",
+			ParseMode:       models.ParseModeMarkdown,
+			ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		})
+		return
+	}
+
+	rows := make([][]models.InlineKeyboardButton, 0, len(jobs))
+	var body strings.Builder
+	body.WriteString("⏰ *Scheduled prompts in this thread*\n\n")
+	for _, j := range jobs {
+		body.WriteString(fmt.Sprintf("`%s` — `%s` — next %s\n  → %s\n",
+			j.ID, j.Schedule, j.NextFire.In(tz).Format("2006-01-02 15:04 MST"),
+			truncate(j.Prompt, 80)))
+
+		cb := cronCallbackPrefix + "rm|" + sessionKey + "|" + j.ID
+		if len(cb) > telegramCallbackDataMax {
+			// Skip the button if the callback_data would exceed Telegram's cap.
+			// User can still delete via `/cron rm <id>`.
+			slog.Warn("skipping telegram cron button: callback_data over cap",
+				"job_id", j.ID, "len", len(cb), "cap", telegramCallbackDataMax)
+			continue
+		}
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: "🗑️ " + j.ID, CallbackData: cb},
+		})
+	}
+
+	b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:          chatID,
+		MessageThreadID: threadID,
+		Text:            body.String(),
+		ParseMode:       models.ParseModeMarkdown,
+		ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+	})
+}
+
 func truncateForButton(s string, max int) string {
 	r := []rune(s)
 	if len(r) <= max {
@@ -729,6 +803,18 @@ func (h *Handler) handleCallbackQuery(ctx context.Context, b *bot.Bot, cq *model
 			return
 		}
 		resultMsg = command.LoadPickerByIndex(h.Pool, parts[0], n)
+	case strings.HasPrefix(data, cronCallbackPrefix):
+		// Format: cron|<action>|<sessionKey>|<id>; only "rm" is implemented in V1.
+		rest := strings.TrimPrefix(data, cronCallbackPrefix)
+		parts := strings.SplitN(rest, "|", 3)
+		if len(parts) != 3 || parts[0] != "rm" {
+			return
+		}
+		if h.CronStore == nil {
+			resultMsg = "⚠️ Cron jobs are disabled on this bot."
+		} else {
+			resultMsg = command.ExecuteCronRemove(h.CronStore, parts[1], parts[2])
+		}
 	default:
 		return
 	}
