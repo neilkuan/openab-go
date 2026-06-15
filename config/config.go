@@ -155,6 +155,10 @@ type TelegramConfig struct {
 	// String type so "*" and numeric IDs can coexist in a single TOML array.
 	AllowedUserIDs []string        `toml:"allowed_user_id"`
 	Reactions      ReactionsConfig `toml:"reactions"`
+	// RichMessages opts into the experimental Bot API 10.1 sendRichMessage path
+	// for complex replies (tables/headings/long content). Off by default; the
+	// adapter falls back to the parse_mode=HTML path on any failure.
+	RichMessages bool `toml:"rich_messages"`
 }
 
 // --- Teams ---

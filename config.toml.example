@@ -42,6 +42,11 @@ error_hold_ms = 2500
 # Use ["*"] as a wildcard to allow any user from any chat.
 # allowed_user_id = ["123456789"]
 # allowed_user_id = ["*"]
+# rich_messages opts into the experimental Bot API 10.1 sendRichMessage path for
+# complex replies (tables / headings / long content). Off by default; falls back
+# to the parse_mode=HTML path on any failure. Requires Telegram clients new
+# enough to render Rich Messages.
+# rich_messages = true
 
 # [telegram.reactions]
 # enabled = true
