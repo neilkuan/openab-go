@@ -17,6 +17,7 @@ This is a **Go rewrite** of [openab](https://github.com/openabdev/openab) (origi
 - **Pluggable agent backends** — Kiro, Claude Code, Codex, GitHub Copilot (any ACP-compatible CLI)
 - **Discord integration** — @mention triggers, auto thread creation, multi-turn conversations
 - **Telegram integration** — @mention / reply-to-bot in groups, private chat, voice auto-accepted in groups, forum topic support (one session per topic)
+- **Telegram rich formatting** — agent markdown rendered with native blockquotes (long quotes auto-collapse via `<blockquote expandable>`); optional experimental Bot API 10.1 **Rich Messages** for native tables/headings on complex replies (`rich_messages`, opt-in, falls back to HTML)
 - **Microsoft Teams integration** — @mention trigger in channels, Bot Framework webhook, streaming edit responses, image/voice/file attachments
 - **Voice message transcription** — transcribes voice messages via OpenAI Whisper API (Discord, Telegram & Teams)
 - **Real-time edit streaming** — updates messages as the agent works (Discord: 1.5s, Telegram: 2s)
@@ -130,6 +131,7 @@ bot_token = "${TELEGRAM_BOT_TOKEN}"
 allowed_chats = [-100123456789]
 # allowed_user_id = ["*"]             # wildcard: any user
 # allowed_user_id = ["123456789"]     # or specific Telegram user IDs (as strings)
+# rich_messages = true                # experimental Bot API 10.1 rich messages (tables/headings); opt-in, falls back to HTML
 
 [teams]
 app_id = "${TEAMS_APP_ID}"
