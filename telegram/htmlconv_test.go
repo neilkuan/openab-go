@@ -102,3 +102,92 @@ func TestConvertToTelegramHTMLLangSanitize(t *testing.T) {
 		t.Fatalf("c++ should pass sanitize, got:\n%s", out)
 	}
 }
+
+// --- blockquote tests ---
+
+func TestConvertToTelegramHTMLBlockquoteSingleLine(t *testing.T) {
+	out := convertToTelegramHTML("> hello world")
+	if out != "<blockquote>hello world</blockquote>" {
+		t.Fatalf("single-line quote mismatch:\n%s", out)
+	}
+}
+
+func TestConvertToTelegramHTMLBlockquoteMultiLine(t *testing.T) {
+	out := convertToTelegramHTML("> line one\n> line two")
+	if out != "<blockquote>line one\nline two</blockquote>" {
+		t.Fatalf("multi-line quote mismatch:\n%s", out)
+	}
+}
+
+// Inline bold/code inside a quote must still render — renderBlockquote recurses
+// into convertToTelegramHTML for the quote body.
+func TestConvertToTelegramHTMLBlockquoteInlineFormatting(t *testing.T) {
+	out := convertToTelegramHTML("> this is **bold** and `code`")
+	if out != "<blockquote>this is <b>bold</b> and <code>code</code></blockquote>" {
+		t.Fatalf("inline formatting inside quote not rendered:\n%s", out)
+	}
+}
+
+func TestConvertToTelegramHTMLBlockquoteLink(t *testing.T) {
+	out := convertToTelegramHTML("> see [docs](https://example.com)")
+	if out != `<blockquote>see <a href="https://example.com">docs</a></blockquote>` {
+		t.Fatalf("link inside quote not rendered:\n%s", out)
+	}
+}
+
+func TestConvertToTelegramHTMLBlockquoteEscapesContent(t *testing.T) {
+	out := convertToTelegramHTML("> a <tag> & more")
+	if out != "<blockquote>a &lt;tag&gt; &amp; more</blockquote>" {
+		t.Fatalf("quote body must be HTML-escaped:\n%s", out)
+	}
+}
+
+// Telegram forbids nested blockquotes; ">>" must flatten to a single level.
+func TestConvertToTelegramHTMLBlockquoteNestedFlattened(t *testing.T) {
+	out := convertToTelegramHTML("> outer\n>> nested")
+	if out != "<blockquote>outer\nnested</blockquote>" {
+		t.Fatalf("nested quote should flatten:\n%s", out)
+	}
+	if strings.Count(out, "<blockquote>") != 1 {
+		t.Fatalf("must produce exactly one blockquote:\n%s", out)
+	}
+}
+
+// More than blockquoteExpandableMinLines (10) lines → expandable variant.
+func TestConvertToTelegramHTMLBlockquoteExpandable(t *testing.T) {
+	in := "> l1\n> l2\n> l3\n> l4\n> l5\n> l6\n> l7\n> l8\n> l9\n> l10\n> l11"
+	out := convertToTelegramHTML(in)
+	if !strings.HasPrefix(out, "<blockquote expandable>") {
+		t.Fatalf("11-line quote should be expandable:\n%s", out)
+	}
+}
+
+// Exactly at the threshold (10 lines) stays a plain blockquote.
+func TestConvertToTelegramHTMLBlockquoteNotExpandableAtThreshold(t *testing.T) {
+	in := "> l1\n> l2\n> l3\n> l4\n> l5\n> l6\n> l7\n> l8\n> l9\n> l10"
+	out := convertToTelegramHTML(in)
+	if !strings.HasPrefix(out, "<blockquote>") || strings.Contains(out, "expandable") {
+		t.Fatalf("10-line quote should NOT be expandable:\n%s", out)
+	}
+}
+
+func TestConvertToTelegramHTMLBlockquoteAdjacentProse(t *testing.T) {
+	out := convertToTelegramHTML("before para\n\n> quoted line\n\nafter para")
+	want := "before para\n\n<blockquote>quoted line</blockquote>\n\nafter para"
+	if out != want {
+		t.Fatalf("surrounding prose not preserved.\nwant: %q\ngot:  %q", want, out)
+	}
+}
+
+// A ">" inside a fenced code block must NOT be parsed as a blockquote — fenced
+// code is extracted to a placeholder before the blockquote pass runs.
+func TestConvertToTelegramHTMLAngleBracketInCodeNotQuoted(t *testing.T) {
+	in := "```\n> this is not a quote\n```"
+	out := convertToTelegramHTML(in)
+	if strings.Contains(out, "<blockquote>") {
+		t.Fatalf("'>' inside code must not become a blockquote:\n%s", out)
+	}
+	if !strings.Contains(out, "<pre>&gt; this is not a quote</pre>") {
+		t.Fatalf("code block with '>' should render as pre:\n%s", out)
+	}
+}
