@@ -43,6 +43,13 @@ type Handler struct {
 	// MarkdownTableMode controls how GFM tables in agent replies are rewritten
 	// before being sent to Telegram. See markdown.TableMode for options.
 	MarkdownTableMode markdown.TableMode
+	// BotToken is the raw Telegram bot token, kept so sendRichMessage can issue
+	// the raw Bot API 10.1 call (go-telegram/bot has no binding for it yet).
+	BotToken string
+	// RichMessages opts into the experimental Bot API 10.1 sendRichMessage path
+	// for complex replies (tables/headings/long). Off by default; falls back to
+	// the parse_mode=HTML path on any failure.
+	RichMessages bool
 	// Picker lists historical sessions for /pick. Nil when
 	// the configured agent backend is not recognised by sessionpicker.Detect.
 	Picker    sessionpicker.Picker
@@ -1102,6 +1109,26 @@ func (h *Handler) streamPrompt(
 			_, model := conn.Models()
 			finalContent += platform.FormatSessionFooter(mode, model)
 		}
+		// Rich Message routing (Bot API 10.1, experimental, opt-in via
+		// telegram.rich_messages). Complex replies (tables/headings/long) go out
+		// as native rich markdown — passed through unchanged — instead of the
+		// HTML path that flattens tables. A rich message is a NEW message, so on
+		// success we delete the streaming placeholder; any failure falls through
+		// to the parse_mode=HTML path below.
+		if h.RichMessages && !agentErrored && isComplexMarkdown(finalContent) {
+			if err := h.sendRichMessage(ctx, chatID, threadID, finalContent); err == nil {
+				if _, derr := b.DeleteMessage(ctx, &bot.DeleteMessageParams{
+					ChatID:    chatID,
+					MessageID: msgID,
+				}); derr != nil {
+					slog.Debug("telegram rich message: placeholder delete failed", "error", derr)
+				}
+				return nil
+			} else {
+				slog.Debug("telegram rich message failed, falling back to html", "error", err)
+			}
+		}
+
 		// Rewrite GFM tables before splitting — Telegram Markdown v1 doesn't
 		// render table syntax, so we wrap them in fenced blocks (or convert
 		// to bullets) for readable rendering. Skipped during streaming preview.

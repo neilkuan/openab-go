@@ -74,6 +74,8 @@ func NewAdapter(cfg config.TelegramConfig, pool *acp.SessionPool, transcriber st
 		Synthesizer:       synthesizer,
 		TTSConfig:         ttsCfg,
 		MarkdownTableMode: markdown.ParseMode(mdCfg.Tables),
+		BotToken:          cfg.BotToken,
+		RichMessages:      cfg.RichMessages,
 		Picker:            picker,
 		CronStore:         cronStore,
 		CronCfg:           cronCfg,
