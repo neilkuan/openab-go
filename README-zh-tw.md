@@ -1,4 +1,5 @@
-# Quill
+# Quill [Fork from https://github.com/openabdev/openab]
+🚨🚨🚨 請優先使用 [openabdev/openab](https://github.com/openabdev/openab) ，此專案為實驗性質，不會進行社群意見維護，要有更好的體驗請使用 [openabdev/openab](https://github.com/openabdev/openab) 🚨🚨🚨
 
 [![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
