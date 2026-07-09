@@ -1,4 +1,5 @@
-# Quill
+# Quill [Fork from https://github.com/openabdev/openab]
+Please use [openabdev/openab](https://github.com/openabdev/openab)
 
 [![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
