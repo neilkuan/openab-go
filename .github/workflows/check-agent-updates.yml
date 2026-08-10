@@ -47,6 +47,8 @@ jobs:
 
       - name: Check for updates
         id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           UPDATES=""
           SUMMARY=""
@@ -73,9 +75,12 @@ jobs:
           check_gh_cli() {
             local current latest
             current=$(grep -oP 'GH_CLI_VERSION=\K[0-9.]+' Dockerfile || true)
-            latest=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-            if [ -z "$current" ] || [ -z "$latest" ]; then
-              echo "  gh CLI: skipped (could not resolve version)"
+            # Authenticated call: unauthenticated api.github.com from shared
+            # runner IPs gets rate-limited, and the error JSON used to leak
+            # through jq as the literal string "null" into the Dockerfiles.
+            latest=$(gh api repos/cli/cli/releases/latest --jq '.tag_name // empty' 2>/dev/null | sed 's/^v//' || true)
+            if [ -z "$current" ] || ! [[ "$latest" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+              echo "  gh CLI: skipped (could not resolve version, got '${latest}')"
               return
             fi
             if [ "$current" != "$latest" ]; then
