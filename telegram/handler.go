@@ -1221,9 +1221,13 @@ func (h *Handler) buildVoiceInfo(userID string) *command.VoiceInfo {
 
 // --- Helper functions ---
 
-// isForumTopic returns true when this message is in a forum topic thread.
+// isForumTopic returns true when this message is in a topic thread. Covers
+// both forum supergroups and private chats with BotFather "Threaded Mode"
+// enabled, where is_topic_message is set but chat.is_forum stays false.
+// Must agree with topicThreadID so message and command paths derive the
+// same session key.
 func isForumTopic(msg *models.Message) bool {
-	return msg.Chat.IsForum && msg.IsTopicMessage
+	return msg.IsTopicMessage && msg.MessageThreadID != 0
 }
 
 // topicThreadID returns the topic thread ID if the message is in a forum topic, 0 otherwise.

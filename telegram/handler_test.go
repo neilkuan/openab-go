@@ -52,6 +52,17 @@ func TestBuildSessionKey(t *testing.T) {
 			},
 			want: "tg:-100123456789",
 		},
+		{
+			// BotFather "Threaded Mode": private chats carry topics with
+			// is_topic_message=true but chat.is_forum stays false.
+			name: "private chat topic (threaded mode)",
+			msg: &models.Message{
+				MessageThreadID: 623267,
+				IsTopicMessage:  true,
+				Chat:            models.Chat{ID: 12345, Type: models.ChatTypePrivate},
+			},
+			want: "tg:12345:623267",
+		},
 	}
 
 	for _, tt := range tests {
@@ -59,6 +70,11 @@ func TestBuildSessionKey(t *testing.T) {
 			got := buildSessionKey(tt.msg)
 			if got != tt.want {
 				t.Errorf("buildSessionKey() = %q, want %q", got, tt.want)
+			}
+			// The command path derives its key from topicThreadID; both
+			// paths must agree or /info, /model etc. miss the live session.
+			if cmdKey := buildSessionKeyFromChat(tt.msg.Chat.ID, topicThreadID(tt.msg)); cmdKey != got {
+				t.Errorf("command-path key = %q, message-path key = %q", cmdKey, got)
 			}
 		})
 	}
@@ -125,6 +141,8 @@ func TestIsForumTopic(t *testing.T) {
 		{"non-forum", &models.Message{Chat: models.Chat{IsForum: false}}, false},
 		{"forum but not topic msg", &models.Message{Chat: models.Chat{IsForum: true}, IsTopicMessage: false}, false},
 		{"forum topic msg", &models.Message{Chat: models.Chat{IsForum: true}, IsTopicMessage: true, MessageThreadID: 42}, true},
+		{"private chat topic (threaded mode)", &models.Message{Chat: models.Chat{IsForum: false}, IsTopicMessage: true, MessageThreadID: 623267}, true},
+		{"topic flag without thread id", &models.Message{Chat: models.Chat{IsForum: false}, IsTopicMessage: true}, false},
 	}
 
 	for _, tt := range tests {
